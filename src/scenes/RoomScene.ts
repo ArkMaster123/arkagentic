@@ -1,5 +1,6 @@
 import { Scene, Tilemaps, GameObjects } from 'phaser';
 import { AGENTS, AGENT_COLORS } from '../constants';
+import { DIRECTION } from '../utils';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 
@@ -49,8 +50,12 @@ export class RoomScene extends Scene {
   private speechBubble: GameObjects.Container | null = null;
   private map!: Tilemaps.Tilemap;
   private interactiveObjects: { obj: any; hitArea: GameObjects.Rectangle }[] = [];
-  private roomContainer!: GameObjects.Container;
-  private uiContainer!: GameObjects.Container;
+  
+  // Agent movement properties
+  private agentDirection: number = DIRECTION.DOWN;
+  private isAgentMoving: boolean = false;
+  private moveSpeed: number = 60; // pixels per second
+  private pendingMessage: string | null = null;
   
   public rexUI!: UIPlugin;
   public rexBoard!: BoardPlugin;
@@ -65,17 +70,17 @@ export class RoomScene extends Scene {
   }
 
   create(): void {
-    // Create containers for layering
-    this.roomContainer = this.add.container(0, 0);
-    this.uiContainer = this.add.container(0, 0);
-    this.uiContainer.setDepth(1000);
+    // Create UI first (before camera adjustments)
+    this.createUI();
     
     // Create the room from tilemap
     this.createRoomFromTilemap();
     this.createAgent();
     this.setupInteractiveObjects();
-    this.createUI();
     this.setupInput();
+    
+    // Configure UI camera to ignore game world objects (must be called after all objects are created)
+    this.configureUICameraIgnore();
     
     // Hide transition after room is ready
     setTimeout(() => {
@@ -89,9 +94,8 @@ export class RoomScene extends Scene {
     // Create the tilemap
     this.map = this.make.tilemap({ key: this.roomConfig.mapKey });
     
-    // Add tileset - using the same tileset as town
-    // The tileset name in the JSON is 'tileset', and we load the image as 'tiles'
-    const tileset = this.map.addTilesetImage('tileset', 'tiles');
+    // Add tileset - using dungeon tileset for rooms
+    const tileset = this.map.addTilesetImage('dungeon', 'dungeon-tiles');
     
     if (!tileset) {
       console.error('Failed to load tileset for room');
@@ -100,19 +104,10 @@ export class RoomScene extends Scene {
     }
 
     // Room is 24x17 tiles = 384x272 pixels at native size
-    // We want it to fill most of the 800x600 screen
-    // Calculate zoom to fit with some padding for UI
-    const roomPixelWidth = this.map.widthInPixels;   // 384
-    const roomPixelHeight = this.map.heightInPixels; // 272
+    // Screen is 800x600
+    // We want to fit the room nicely with some UI space
     
-    const availableWidth = 800 - 40;  // padding for UI
-    const availableHeight = 600 - 120; // padding for title and footer
-    
-    const zoomX = availableWidth / roomPixelWidth;
-    const zoomY = availableHeight / roomPixelHeight;
-    const zoom = Math.min(zoomX, zoomY); // ~1.76
-    
-    // Create layers at origin, we'll position via container
+    // Create layers at origin
     const floorLayer = this.map.createLayer('floor', tileset, 0, 0);
     const wallsLayer = this.map.createLayer('walls', tileset, 0, 0);
     const furnitureLayer = this.map.createLayer('furniture', tileset, 0, 0);
@@ -122,97 +117,66 @@ export class RoomScene extends Scene {
     if (wallsLayer) wallsLayer.setDepth(1);
     if (furnitureLayer) furnitureLayer.setDepth(2);
 
-    // Add layers to room container
-    if (floorLayer) this.roomContainer.add(floorLayer);
-    if (wallsLayer) this.roomContainer.add(wallsLayer);
-    if (furnitureLayer) this.roomContainer.add(furnitureLayer);
-
-    // Scale and center the room container
-    this.roomContainer.setScale(zoom);
+    // Set up camera to zoom and center the room
+    // Leave 60px at top for title, 40px at bottom for instructions
+    const availableHeight = 600 - 100;
+    const availableWidth = 800;
     
-    const scaledWidth = roomPixelWidth * zoom;
-    const scaledHeight = roomPixelHeight * zoom;
-    const offsetX = (800 - scaledWidth) / 2;
-    const offsetY = 70 + (availableHeight - scaledHeight) / 2; // 70px for title area
+    const roomWidth = this.map.widthInPixels;   // 384
+    const roomHeight = this.map.heightInPixels; // 272
     
-    this.roomContainer.setPosition(offsetX, offsetY);
-
-    // Store zoom and offset for interactive objects
-    (this as any).roomZoom = zoom;
-    (this as any).roomOffsetX = offsetX;
-    (this as any).roomOffsetY = offsetY;
-
-    // Add room title (in UI container, not affected by zoom)
-    const agentColor = AGENT_COLORS[this.agentType as keyof typeof AGENT_COLORS] || 0xe94560;
+    // Calculate zoom to fit room in available space
+    const zoomX = availableWidth / roomWidth;
+    const zoomY = availableHeight / roomHeight;
+    const zoom = Math.min(zoomX, zoomY); // Should be about 1.84
     
-    // Room name sign background
-    const signBg = this.add.graphics();
-    signBg.fillStyle(0x000000, 0.8);
-    signBg.fillRoundedRect(400 - 150, 15, 300, 50, 10);
-    signBg.fillStyle(agentColor, 1);
-    signBg.fillRect(400 - 150, 15, 300, 5);
-    this.uiContainer.add(signBg);
+    // Set camera zoom and bounds
+    this.cameras.main.setZoom(zoom);
+    this.cameras.main.setBounds(0, 0, roomWidth, roomHeight);
+    
+    // Center the room in the available space
+    // The camera centers on a point, so we center on the middle of the room
+    this.cameras.main.centerOn(roomWidth / 2, roomHeight / 2);
+    
+    // Offset the camera viewport to leave room for UI
+    // Move the viewport down by 30px to center in the available area
+    this.cameras.main.setViewport(0, 30, 800, 600 - 30);
 
-    const titleText = this.add.text(400, 30, this.roomConfig.name, {
-      fontSize: '18px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-    }).setOrigin(0.5, 0);
-    this.uiContainer.add(titleText);
-
-    const descText = this.add.text(400, 50, this.roomConfig.description, {
-      fontSize: '12px',
-      color: '#aaaaaa',
-    }).setOrigin(0.5, 0);
-    this.uiContainer.add(descText);
+    console.log(`Room: ${roomWidth}x${roomHeight}, Zoom: ${zoom.toFixed(2)}`);
   }
 
   private createFallbackRoom(): void {
     const graphics = this.add.graphics();
-    const width = 24 * 16;
-    const height = 17 * 16;
-    
-    const zoom = 1.7;
-    const scaledWidth = width * zoom;
-    const scaledHeight = height * zoom;
-    const offsetX = (800 - scaledWidth) / 2;
-    const offsetY = 70 + ((600 - 120) - scaledHeight) / 2;
+    const width = 24 * 16;  // 384
+    const height = 17 * 16; // 272
 
     const agentColor = AGENT_COLORS[this.agentType as keyof typeof AGENT_COLORS] || 0xe94560;
     
     // Floor
-    graphics.fillStyle(0x2c3e50, 1);
+    graphics.fillStyle(0x3d3d3d, 1);
     graphics.fillRect(0, 0, width, height);
 
-    // Walls
-    graphics.fillStyle(0x1a252f, 1);
-    graphics.fillRect(0, 0, width, 16);
-    graphics.fillRect(0, 0, 16, height);
-    graphics.fillRect(width - 16, 0, 16, height);
-    graphics.fillRect(0, height - 16, width, 16);
+    // Walls - top and bottom rows with brick pattern
+    graphics.fillStyle(0x5c4033, 1);
+    graphics.fillRect(0, 0, width, 32);  // Top wall (2 tiles)
+    graphics.fillRect(0, 0, 16, height); // Left wall
+    graphics.fillRect(width - 16, 0, 16, height); // Right wall
+    graphics.fillRect(0, height - 16, width, 16); // Bottom wall
 
-    this.roomContainer.add(graphics);
-    this.roomContainer.setScale(zoom);
-    this.roomContainer.setPosition(offsetX, offsetY);
+    // Door opening at bottom
+    graphics.fillStyle(0x3d3d3d, 1);
+    graphics.fillRect(160, height - 16, 64, 16);
 
-    (this as any).roomZoom = zoom;
-    (this as any).roomOffsetX = offsetX;
-    (this as any).roomOffsetY = offsetY;
-
-    // Title
-    const signBg = this.add.graphics();
-    signBg.fillStyle(0x000000, 0.8);
-    signBg.fillRoundedRect(400 - 150, 15, 300, 50, 10);
-    signBg.fillStyle(agentColor, 1);
-    signBg.fillRect(400 - 150, 15, 300, 5);
-    this.uiContainer.add(signBg);
-
-    const titleText = this.add.text(400, 30, this.roomConfig.name, {
-      fontSize: '18px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-    }).setOrigin(0.5, 0);
-    this.uiContainer.add(titleText);
+    // Set up camera like tilemap version
+    const availableHeight = 600 - 100;
+    const zoomX = 800 / width;
+    const zoomY = availableHeight / height;
+    const zoom = Math.min(zoomX, zoomY);
+    
+    this.cameras.main.setZoom(zoom);
+    this.cameras.main.setBounds(0, 0, width, height);
+    this.cameras.main.centerOn(width / 2, height / 2);
+    this.cameras.main.setViewport(0, 30, 800, 600 - 30);
   }
 
   private setupInteractiveObjects(): void {
@@ -221,33 +185,27 @@ export class RoomScene extends Scene {
     const objectLayer = this.map.getObjectLayer('objects');
     if (!objectLayer) return;
 
-    const zoom = (this as any).roomZoom || 1;
-    const offsetX = (this as any).roomOffsetX || 0;
-    const offsetY = (this as any).roomOffsetY || 0;
-
     objectLayer.objects.forEach((obj) => {
       if (obj.type === 'interactive' && obj.x !== undefined && obj.y !== undefined) {
-        // Calculate screen position (accounting for zoom and offset)
-        const x = offsetX + (obj.x + (obj.width || 0) / 2) * zoom;
-        const y = offsetY + (obj.y + (obj.height || 0) / 2) * zoom;
-        const w = (obj.width || 32) * zoom;
-        const h = (obj.height || 32) * zoom;
+        // Objects are in tilemap coordinates - the camera handles the transform
+        const x = obj.x + (obj.width || 0) / 2;
+        const y = obj.y + (obj.height || 0) / 2;
+        const w = obj.width || 32;
+        const h = obj.height || 32;
         
-        // Create invisible hit area in screen space
+        // Create invisible hit area in world/tilemap space
         const hitArea = this.add.rectangle(x, y, w, h, 0x000000, 0);
         hitArea.setInteractive({ useHandCursor: true });
         hitArea.setDepth(500);
 
         // Get custom properties
-        const actionProp = obj.properties?.find((p: any) => p.name === 'action');
         const messageProp = obj.properties?.find((p: any) => p.name === 'message');
-        
         const message = messageProp?.value || `This is ${obj.name}`;
 
         // Hover effect
         hitArea.on('pointerover', () => {
-          this.showItemTooltip(x, y - h / 2 - 15, obj.name || 'Item');
-          hitArea.setFillStyle(0xffffff, 0.15);
+          this.showItemTooltip(x, y - h / 2 - 10, obj.name || 'Item');
+          hitArea.setFillStyle(0xffffff, 0.2);
         });
 
         hitArea.on('pointerout', () => {
@@ -256,7 +214,8 @@ export class RoomScene extends Scene {
         });
 
         hitArea.on('pointerdown', () => {
-          this.showSpeechBubble(message);
+          // Walk to the object first, then show the message
+          this.walkToAndSpeak(x, y, message);
         });
 
         this.interactiveObjects.push({ obj, hitArea });
@@ -266,8 +225,11 @@ export class RoomScene extends Scene {
 
   private tooltip: GameObjects.Container | null = null;
 
-  private showItemTooltip(x: number, y: number, text: string): void {
+  private showItemTooltip(worldX: number, worldY: number, text: string): void {
     this.hideItemTooltip();
+    
+    // Convert world coordinates to screen coordinates for crisp text
+    const screenPos = this.worldToScreen(worldX, worldY);
     
     const bg = this.add.graphics();
     const padding = 10;
@@ -282,10 +244,16 @@ export class RoomScene extends Scene {
     const height = label.height + padding * 2;
     
     bg.fillStyle(0x000000, 0.9);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 6);
     
-    this.tooltip = this.add.container(x, y, [bg, label]);
-    this.tooltip.setDepth(2000);
+    // Clamp to safe zone
+    const clampedPos = this.clampToSafeZone(screenPos.x, screenPos.y, width, height);
+    
+    this.tooltip = this.add.container(clampedPos.x, clampedPos.y, [bg, label]);
+    this.tooltip.setDepth(2500);
+    
+    // Tooltip is rendered by UI camera (screen space) - main camera should ignore
+    this.cameras.main.ignore(this.tooltip);
   }
 
   private hideItemTooltip(): void {
@@ -296,10 +264,6 @@ export class RoomScene extends Scene {
   }
 
   private createAgent(): void {
-    const zoom = (this as any).roomZoom || 1;
-    const offsetX = (this as any).roomOffsetX || 0;
-    const offsetY = (this as any).roomOffsetY || 0;
-    
     // Get spawn point from tilemap or use default center
     let spawnX = this.map ? this.map.widthInPixels / 2 : 192;
     let spawnY = this.map ? this.map.heightInPixels / 2 : 136;
@@ -315,15 +279,11 @@ export class RoomScene extends Scene {
       }
     }
     
-    // Convert to screen coordinates
-    const screenX = offsetX + spawnX * zoom;
-    const screenY = offsetY + spawnY * zoom;
-    
     const agentConfig = AGENTS[this.agentType as keyof typeof AGENTS];
     
-    // Create the sprite (scaled with the room)
-    this.agentSprite = this.add.sprite(screenX, screenY, agentConfig.sprite);
-    this.agentSprite.setScale(zoom * 1.5); // Slightly larger than tiles
+    // Create the sprite in tilemap/world coordinates
+    this.agentSprite = this.add.sprite(spawnX, spawnY, agentConfig.sprite);
+    this.agentSprite.setScale(1.5); // Slightly larger than tiles
     this.agentSprite.setDepth(100);
     
     // Create walking animation if it doesn't exist
@@ -338,19 +298,46 @@ export class RoomScene extends Scene {
     }
     this.agentSprite.play(animKey);
     
-    // Create name tag
+    // Create name tag in SCREEN SPACE (rendered by UI camera, crisp text)
     const agentColor = AGENT_COLORS[this.agentType as keyof typeof AGENT_COLORS];
+    const screenPos = this.worldToScreen(spawnX, spawnY - 35);
+    
     this.agentNameTag = this.add.text(
-      screenX,
-      screenY - 30 * zoom,
+      0, 0, // Position will be set after we know dimensions
       `${agentConfig.emoji} ${agentConfig.name}`,
       {
-        fontSize: '14px',
+        fontSize: '12px',
         color: '#ffffff',
         backgroundColor: '#' + agentColor.toString(16).padStart(6, '0'),
         padding: { x: 6, y: 3 },
       }
-    ).setOrigin(0.5, 1).setDepth(101);
+    ).setOrigin(0.5, 1).setDepth(2500);
+    
+    // Clamp to safe zone
+    const clampedPos = this.clampToSafeZone(
+      screenPos.x, 
+      screenPos.y, 
+      this.agentNameTag.width, 
+      this.agentNameTag.height
+    );
+    this.agentNameTag.setPosition(clampedPos.x, clampedPos.y);
+    
+    // Name tag is UI element - main camera should ignore it
+    this.cameras.main.ignore(this.agentNameTag);
+    
+    // Force an immediate position update after camera is fully set up
+    this.time.delayedCall(50, () => {
+      if (this.agentNameTag && this.agentSprite) {
+        const screenPos = this.worldToScreen(this.agentSprite.x, this.agentSprite.y - 35);
+        const clampedPos = this.clampToSafeZone(
+          screenPos.x, 
+          screenPos.y, 
+          this.agentNameTag.width, 
+          this.agentNameTag.height
+        );
+        this.agentNameTag.setPosition(clampedPos.x, clampedPos.y);
+      }
+    });
     
     // Welcome message
     this.time.delayedCall(800, () => {
@@ -358,38 +345,98 @@ export class RoomScene extends Scene {
     });
   }
 
+  // Convert world coordinates to screen coordinates
+  private worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
+    const camera = this.cameras.main;
+    
+    // Camera viewport: x=0, y=30, width=800, height=570
+    // Camera is centered on the room center and zoomed
+    
+    // Get the top-left corner of what the camera sees in world space
+    const worldViewX = camera.worldView.x;
+    const worldViewY = camera.worldView.y;
+    
+    // Convert world position to screen position
+    // (worldX - worldViewX) gives position relative to camera view in world units
+    // Multiply by zoom to get screen pixels
+    // Add camera viewport offset (camera.x, camera.y)
+    const screenX = camera.x + (worldX - worldViewX) * camera.zoom;
+    const screenY = camera.y + (worldY - worldViewY) * camera.zoom;
+    
+    return { x: screenX, y: screenY };
+  }
+
+  // Safe zone padding for UI elements (invisible chat padding box)
+  private readonly UI_PADDING = {
+    top: 70,      // Below the title bar
+    bottom: 50,   // Above the footer
+    left: 30,
+    right: 30
+  };
+
+  // Clamp a screen position to stay within the safe zone
+  private clampToSafeZone(
+    screenX: number, 
+    screenY: number, 
+    elementWidth: number = 0, 
+    elementHeight: number = 0
+  ): { x: number; y: number } {
+    const halfWidth = elementWidth / 2;
+    const halfHeight = elementHeight / 2;
+    
+    // Calculate safe bounds
+    const minX = this.UI_PADDING.left + halfWidth;
+    const maxX = 800 - this.UI_PADDING.right - halfWidth;
+    const minY = this.UI_PADDING.top + halfHeight;
+    const maxY = 600 - this.UI_PADDING.bottom - halfHeight;
+    
+    return {
+      x: Math.max(minX, Math.min(maxX, screenX)),
+      y: Math.max(minY, Math.min(maxY, screenY))
+    };
+  }
+
+  // Store speech bubble dimensions for clamping in update()
+  private speechBubbleSize = { width: 0, height: 0 };
+
   private showSpeechBubble(text: string): void {
     if (this.speechBubble) {
       this.speechBubble.destroy();
       this.speechBubble = null;
     }
     
-    const x = this.agentSprite.x;
-    const y = this.agentSprite.y - 60;
-    
-    this.speechBubble = this.add.container(x, y);
-    this.speechBubble.setDepth(2000);
-    
     const bg = this.add.graphics();
     const padding = 12;
-    const maxWidth = 220;
+    const maxWidth = 240;
     
     const speechText = this.add.text(0, 0, text, {
       fontSize: '13px',
       color: '#ffffff',
       wordWrap: { width: maxWidth - padding * 2 },
       lineSpacing: 3,
+      align: 'center',
     }).setOrigin(0.5);
     
     const width = Math.min(maxWidth, speechText.width + padding * 2);
     const height = speechText.height + padding * 2;
     
+    // Store dimensions for clamping
+    this.speechBubbleSize = { width, height: height + 12 }; // +12 for the tail
+    
     const agentColor = AGENT_COLORS[this.agentType as keyof typeof AGENT_COLORS];
     bg.fillStyle(agentColor, 0.95);
-    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 12);
-    bg.fillTriangle(0, height / 2, -10, height / 2 + 12, 10, height / 2);
+    bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
+    bg.fillTriangle(0, height / 2, -8, height / 2 + 10, 8, height / 2);
     
-    this.speechBubble.add([bg, speechText]);
+    // Get initial position (above agent) and clamp to safe zone
+    const screenPos = this.worldToScreen(this.agentSprite.x, this.agentSprite.y - 60);
+    const clampedPos = this.clampToSafeZone(screenPos.x, screenPos.y, width, height + 12);
+    
+    this.speechBubble = this.add.container(clampedPos.x, clampedPos.y, [bg, speechText]);
+    this.speechBubble.setDepth(2500);
+    
+    // Speech bubble is rendered by UI camera (screen space) - main camera should ignore
+    this.cameras.main.ignore(this.speechBubble);
     
     // Auto-hide
     this.time.delayedCall(5000, () => {
@@ -409,61 +456,128 @@ export class RoomScene extends Scene {
     });
   }
 
-  private createUI(): void {
-    // Back button
-    const backBtn = this.add.container(20, 20);
-    
-    const btnBg = this.add.graphics();
-    btnBg.fillStyle(0xe94560, 1);
-    btnBg.fillRoundedRect(0, 0, 140, 40, 10);
-    
-    const btnText = this.add.text(70, 20, '< Back to Town', {
-      fontSize: '14px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-    
-    backBtn.add([btnBg, btnText]);
-    backBtn.setSize(140, 40);
-    backBtn.setInteractive({ useHandCursor: true });
-    this.uiContainer.add(backBtn);
-    
-    backBtn.on('pointerover', () => {
-      btnBg.clear();
-      btnBg.fillStyle(0xff6b8a, 1);
-      btnBg.fillRoundedRect(0, 0, 140, 40, 10);
-    });
-    
-    backBtn.on('pointerout', () => {
-      btnBg.clear();
-      btnBg.fillStyle(0xe94560, 1);
-      btnBg.fillRoundedRect(0, 0, 140, 40, 10);
-    });
-    
-    backBtn.on('pointerdown', () => this.exitRoom());
+  // Store UI elements to configure camera ignore lists
+  private uiElements: GameObjects.GameObject[] = [];
+  private uiCamera: Phaser.Cameras.Scene2D.Camera | null = null;
 
-    // Agent badge (top right)
+  private createUI(): void {
+    // Create a separate UI camera that covers the full screen
+    this.uiCamera = this.cameras.add(0, 0, 800, 600);
+    this.uiCamera.setScroll(0, 0);
+    this.uiCamera.setName('ui-camera');
+    
     const agentConfig = AGENTS[this.agentType as keyof typeof AGENTS];
     const agentColor = AGENT_COLORS[this.agentType as keyof typeof AGENT_COLORS];
     
-    const badgeBg = this.add.graphics();
-    badgeBg.fillStyle(agentColor, 0.9);
-    badgeBg.fillRoundedRect(800 - 160, 20, 140, 40, 10);
-    this.uiContainer.add(badgeBg);
-    
-    const badgeText = this.add.text(800 - 90, 40, `${agentConfig.emoji} ${agentConfig.name}`, {
-      fontSize: '14px',
+    // Title bar background
+    const titleBg = this.add.graphics();
+    titleBg.fillStyle(0x000000, 0.8);
+    titleBg.fillRect(0, 0, 800, 50);
+    titleBg.fillStyle(agentColor, 1);
+    titleBg.fillRect(0, 0, 800, 4);
+    titleBg.setDepth(3000);
+
+    // Room title
+    const titleText = this.add.text(400, 15, this.roomConfig.name, {
+      fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.uiContainer.add(badgeText);
+    }).setOrigin(0.5, 0).setDepth(3001);
+
+    const descText = this.add.text(400, 33, this.roomConfig.description, {
+      fontSize: '11px',
+      color: '#aaaaaa',
+    }).setOrigin(0.5, 0).setDepth(3001);
+
+    // Back button
+    const backBtnBg = this.add.graphics();
+    backBtnBg.fillStyle(0xe94560, 1);
+    backBtnBg.fillRoundedRect(15, 10, 110, 30, 6);
+    backBtnBg.setDepth(3001);
+    
+    const backBtnText = this.add.text(70, 25, '< Back to Town', {
+      fontSize: '10px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(3002);
+    
+    // Create invisible hit area for back button
+    const backHitArea = this.add.rectangle(70, 25, 110, 30, 0x000000, 0);
+    backHitArea.setDepth(3003);
+    backHitArea.setInteractive({ useHandCursor: true });
+    
+    backHitArea.on('pointerover', () => {
+      backBtnBg.clear();
+      backBtnBg.fillStyle(0xff6b8a, 1);
+      backBtnBg.fillRoundedRect(15, 10, 110, 30, 6);
+    });
+    
+    backHitArea.on('pointerout', () => {
+      backBtnBg.clear();
+      backBtnBg.fillStyle(0xe94560, 1);
+      backBtnBg.fillRoundedRect(15, 10, 110, 30, 6);
+    });
+    
+    backHitArea.on('pointerdown', () => this.exitRoom());
+
+    // Agent badge (top right)
+    const badgeBg = this.add.graphics();
+    badgeBg.fillStyle(agentColor, 0.9);
+    badgeBg.fillRoundedRect(800 - 115, 10, 100, 30, 6);
+    badgeBg.setDepth(3001);
+    
+    const badgeText = this.add.text(800 - 65, 25, `${agentConfig.emoji} ${agentConfig.name}`, {
+      fontSize: '11px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(3002);
 
     // Instructions at bottom
-    const instrText = this.add.text(400, 580, 'Click on items to interact  |  Press ESC to exit', {
-      fontSize: '12px',
-      color: '#666666',
-    }).setOrigin(0.5);
-    this.uiContainer.add(instrText);
+    const footerBg = this.add.graphics();
+    footerBg.fillStyle(0x000000, 0.6);
+    footerBg.fillRect(0, 570, 800, 30);
+    footerBg.setDepth(3000);
+
+    const instrText = this.add.text(400, 585, 'Click on items to interact  |  Press ESC to exit', {
+      fontSize: '11px',
+      color: '#888888',
+    }).setOrigin(0.5).setDepth(3001);
+    
+    // Store UI elements for camera configuration
+    this.uiElements = [titleBg, titleText, descText, backBtnBg, backBtnText, backHitArea, badgeBg, badgeText, footerBg, instrText];
+    
+    // Make main camera ignore UI elements (they'll only show on UI camera)
+    this.cameras.main.ignore(this.uiElements);
+  }
+
+  // Configure UI camera to ignore game world objects (called after room and agent are created)
+  private configureUICameraIgnore(): void {
+    if (!this.uiCamera) return;
+    
+    // Collect all game world objects that the UI camera should ignore
+    const gameObjects: GameObjects.GameObject[] = [];
+    
+    // Add tilemap layers
+    if (this.map) {
+      this.map.layers.forEach(layerData => {
+        if (layerData.tilemapLayer) {
+          gameObjects.push(layerData.tilemapLayer);
+        }
+      });
+    }
+    
+    // Add agent sprite (but NOT name tag - it's now in screen space for crisp rendering)
+    if (this.agentSprite) gameObjects.push(this.agentSprite);
+    
+    // Add interactive object hit areas
+    this.interactiveObjects.forEach(({ hitArea }) => {
+      gameObjects.push(hitArea);
+    });
+    
+    // Make UI camera ignore all game objects
+    if (gameObjects.length > 0) {
+      this.uiCamera.ignore(gameObjects);
+    }
   }
 
   private setupInput(): void {
@@ -472,12 +586,165 @@ export class RoomScene extends Scene {
     });
   }
 
+  // Walk to an object and then speak
+  private walkToAndSpeak(targetX: number, targetY: number, message: string): void {
+    // If already moving, cancel current movement
+    if (this.isAgentMoving) {
+      this.tweens.killTweensOf(this.agentSprite);
+      this.isAgentMoving = false;
+    }
+    
+    // Hide current speech bubble
+    if (this.speechBubble) {
+      this.speechBubble.destroy();
+      this.speechBubble = null;
+    }
+    
+    // Calculate distance and duration
+    const dx = targetX - this.agentSprite.x;
+    const dy = targetY - this.agentSprite.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Stop near the object, not on top of it
+    const stopDistance = 20;
+    const ratio = Math.max(0, (distance - stopDistance) / distance);
+    const finalX = this.agentSprite.x + dx * ratio;
+    const finalY = this.agentSprite.y + dy * ratio;
+    
+    // Determine direction for animation
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.agentDirection = dx > 0 ? DIRECTION.RIGHT : DIRECTION.LEFT;
+    } else {
+      this.agentDirection = dy > 0 ? DIRECTION.DOWN : DIRECTION.UP;
+    }
+    
+    // Start walking animation
+    this.playWalkAnimation();
+    this.isAgentMoving = true;
+    
+    // Calculate duration based on distance and speed
+    const duration = (distance / this.moveSpeed) * 1000;
+    
+    // If very close, just show the message
+    if (distance < stopDistance) {
+      this.isAgentMoving = false;
+      this.playIdleAnimation();
+      this.showSpeechBubble(message);
+      return;
+    }
+    
+    // Tween to the target
+    this.tweens.add({
+      targets: this.agentSprite,
+      x: finalX,
+      y: finalY,
+      duration: duration,
+      ease: 'Linear',
+      onComplete: () => {
+        this.isAgentMoving = false;
+        // Face toward the object
+        this.faceToward(targetX, targetY);
+        this.playIdleAnimation();
+        // Show message after arriving
+        this.showSpeechBubble(message);
+      }
+    });
+  }
+
+  private faceToward(targetX: number, targetY: number): void {
+    const dx = targetX - this.agentSprite.x;
+    const dy = targetY - this.agentSprite.y;
+    
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.agentDirection = dx > 0 ? DIRECTION.RIGHT : DIRECTION.LEFT;
+    } else {
+      this.agentDirection = dy > 0 ? DIRECTION.DOWN : DIRECTION.UP;
+    }
+  }
+
+  private getDirectionText(): string {
+    switch (this.agentDirection) {
+      case DIRECTION.UP: return 'up';
+      case DIRECTION.DOWN: return 'down';
+      case DIRECTION.LEFT: return 'left';
+      case DIRECTION.RIGHT: return 'right';
+      default: return 'down';
+    }
+  }
+
+  private playWalkAnimation(): void {
+    const agentConfig = AGENTS[this.agentType as keyof typeof AGENTS];
+    const dirText = this.getDirectionText();
+    const animKey = `${agentConfig.sprite}-walk-${dirText}`;
+    
+    // Create animation if it doesn't exist
+    if (!this.anims.exists(animKey)) {
+      // Get frame offset based on direction
+      let startFrame = 0;
+      switch (this.agentDirection) {
+        case DIRECTION.DOWN: startFrame = 0; break;
+        case DIRECTION.LEFT: startFrame = 3; break;
+        case DIRECTION.RIGHT: startFrame = 6; break;
+        case DIRECTION.UP: startFrame = 9; break;
+      }
+      
+      this.anims.create({
+        key: animKey,
+        frames: this.anims.generateFrameNumbers(agentConfig.sprite, { 
+          start: startFrame, 
+          end: startFrame + 2 
+        }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
+    
+    this.agentSprite.play(animKey, true);
+  }
+
+  private playIdleAnimation(): void {
+    const agentConfig = AGENTS[this.agentType as keyof typeof AGENTS];
+    const dirText = this.getDirectionText();
+    const animKey = `${agentConfig.sprite}-walk-${dirText}`;
+    
+    // Create animation if it doesn't exist
+    if (!this.anims.exists(animKey)) {
+      let startFrame = 0;
+      switch (this.agentDirection) {
+        case DIRECTION.DOWN: startFrame = 0; break;
+        case DIRECTION.LEFT: startFrame = 3; break;
+        case DIRECTION.RIGHT: startFrame = 6; break;
+        case DIRECTION.UP: startFrame = 9; break;
+      }
+      
+      this.anims.create({
+        key: animKey,
+        frames: this.anims.generateFrameNumbers(agentConfig.sprite, { 
+          start: startFrame, 
+          end: startFrame + 2 
+        }),
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
+    
+    // Play animation and stop on first frame
+    this.agentSprite.play(animKey, true);
+    this.agentSprite.anims.stop();
+    if (this.agentSprite.anims.currentAnim) {
+      this.agentSprite.setFrame(this.agentSprite.anims.currentAnim.frames[0].frame.name);
+    }
+  }
+
   private exitRoom(): void {
     const agentConfig = AGENTS[this.agentType as keyof typeof AGENTS];
     
     // Cleanup
     this.interactiveObjects.forEach(({ hitArea }) => hitArea.destroy());
     this.interactiveObjects = [];
+    
+    // Update URL to town
+    window.history.pushState({}, '', '/town');
     
     if ((window as any).showTransition) {
       (window as any).showTransition(
@@ -493,10 +760,28 @@ export class RoomScene extends Scene {
   }
 
   update(): void {
-    // Update name tag to follow agent
+    // Update name tag to follow agent (in screen space, clamped to safe zone)
     if (this.agentNameTag && this.agentSprite) {
-      const zoom = (this as any).roomZoom || 1;
-      this.agentNameTag.setPosition(this.agentSprite.x, this.agentSprite.y - 30 * zoom);
+      const screenPos = this.worldToScreen(this.agentSprite.x, this.agentSprite.y - 35);
+      const clampedPos = this.clampToSafeZone(
+        screenPos.x, 
+        screenPos.y, 
+        this.agentNameTag.width, 
+        this.agentNameTag.height
+      );
+      this.agentNameTag.setPosition(clampedPos.x, clampedPos.y);
+    }
+    
+    // Update speech bubble to follow agent (in screen space, clamped to safe zone)
+    if (this.speechBubble && this.agentSprite) {
+      const screenPos = this.worldToScreen(this.agentSprite.x, this.agentSprite.y - 60);
+      const clampedPos = this.clampToSafeZone(
+        screenPos.x, 
+        screenPos.y, 
+        this.speechBubbleSize.width, 
+        this.speechBubbleSize.height
+      );
+      this.speechBubble.setPosition(clampedPos.x, clampedPos.y);
     }
   }
 }

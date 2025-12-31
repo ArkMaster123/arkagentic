@@ -44,6 +44,9 @@ export class LoadingScene extends Scene {
     this.load.tilemapTiledJSON('town', 'assets/tilemaps/json/town.json');
     this.load.image('tiles', 'assets/tilemaps/tiles/tileset.png');
     
+    // Load dungeon tileset for rooms (0x72 DungeonTileset II)
+    this.load.image('dungeon-tiles', 'assets/tilemaps/tiles/dungeon/0x72_DungeonTilesetII_v1.7.png');
+    
     // Load room tilemaps for each agent
     this.load.tilemapTiledJSON('room-scout', 'assets/tilemaps/json/room-scout.json');
     this.load.tilemapTiledJSON('room-sage', 'assets/tilemaps/json/room-sage.json');

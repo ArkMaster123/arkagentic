@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Map - AgentVerse</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0d0d14;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Main container */
+    .map-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Background map image */
+    .map-background {
+      width: 100%;
+      height: 100%;
+      background-image: url('/assets/worldmap.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      position: relative;
+      transition: transform 0.3s ease;
+    }
+
+    /* Vignette effect */
+    .vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 30%, rgba(13, 13, 20, 0.7) 100%);
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    /* Header - matching main page style */
+    .map-header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 20px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(12, 12, 26, 0.95) 0%, rgba(12, 12, 26, 0.8) 60%, transparent 100%);
+      z-index: 10;
+      border-bottom: 1px solid rgba(42, 42, 62, 0.5);
+    }
+
+    .logo {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .logo h1 {
+      font-size: 1.4rem;
+      color: #e94560;
+      margin-bottom: 4px;
+    }
+
+    .logo p {
+      font-size: 0.75rem;
+      color: #666;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .nav-btn {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      border: none;
+      border-radius: 24px;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+    }
+
+    .nav-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(233, 69, 96, 0.5);
+    }
+
+    .nav-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Interactive location markers - MUCH BIGGER */
+    .location-marker {
+      position: absolute;
+      cursor: pointer;
+      z-index: 6;
+    }
+
+    .marker-hitbox {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      border-radius: 16px;
+      border: 3px solid transparent;
+      transition: all 0.3s ease;
+      background: rgba(233, 69, 96, 0.05);
+    }
+
+    .location-marker:hover .marker-hitbox {
+      background: rgba(233, 69, 96, 0.2);
+      box-shadow: 0 0 40px rgba(233, 69, 96, 0.6), inset 0 0 30px rgba(233, 69, 96, 0.15);
+      border: 3px solid rgba(233, 69, 96, 0.7);
+    }
+
+    /* Big prominent pulse marker */
+    .marker-pulse {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      border-radius: 50%;
+      animation: pulse-glow 2s infinite;
+      box-shadow: 0 0 20px #e94560, 0 0 40px rgba(233, 69, 96, 0.5);
+      border: 3px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .marker-pulse::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border: 3px solid rgba(233, 69, 96, 0.4);
+      border-radius: 50%;
+      animation: pulse-ring 2s infinite;
+    }
+
+    .marker-pulse::after {
+      content: '';
+      position: absolute;
+      inset: -16px;
+      border: 2px solid rgba(233, 69, 96, 0.2);
+      border-radius: 50%;
+      animation: pulse-ring 2s infinite 0.5s;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% {
+        transform: translateX(-50%) scale(1);
+        box-shadow: 0 0 20px #e94560, 0 0 40px rgba(233, 69, 96, 0.5);
+      }
+      50% {
+        transform: translateX(-50%) scale(1.15);
+        box-shadow: 0 0 30px #e94560, 0 0 60px rgba(233, 69, 96, 0.7);
+      }
+    }
+
+    @keyframes pulse-ring {
+      0% {
+        transform: scale(0.8);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.5);
+        opacity: 0;
+      }
+    }
+
+    .location-marker:hover .marker-pulse {
+      animation: pulse-active 0.4s infinite;
+      width: 28px;
+      height: 28px;
+    }
+
+    @keyframes pulse-active {
+      0%, 100% { transform: translateX(-50%) scale(1.1); }
+      50% { transform: translateX(-50%) scale(1.3); }
+    }
+
+    /* Tooltip on hover - matching agent card style */
+    .marker-tooltip {
+      position: absolute;
+      bottom: calc(100% + 20px);
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background: linear-gradient(135deg, #1a1a28 0%, #14141e 100%);
+      border: 2px solid #e94560;
+      border-radius: 12px;
+      padding: 14px 18px;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+      z-index: 100;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(233, 69, 96, 0.3);
+    }
+
+    .marker-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 10px solid transparent;
+      border-top-color: #e94560;
+    }
+
+    .location-marker:hover .marker-tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .tooltip-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .tooltip-type {
+      font-size: 0.7rem;
+      color: #e94560;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Modal - matching agent-modal style from main page */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: linear-gradient(135deg, #1a1a28 0%, #12121a 100%);
+      border: 2px solid #e94560;
+      border-radius: 16px;
+      max-width: 420px;
+      width: 90%;
+      max-height: 85vh;
+      overflow-y: auto;
+      transform: scale(0.9);
+      transition: all 0.3s ease;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(233, 69, 96, 0.2);
+      text-align: center;
+    }
+
+    .modal-overlay.active .modal {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      position: relative;
+      padding: 30px 30px 20px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 24px;
+      cursor: pointer;
+      transition: color 0.2s;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+
+    .modal-close:hover {
+      color: #e94560;
+      background: rgba(233, 69, 96, 0.1);
+    }
+
+    .modal-icon {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #251520 0%, #1a1a28 100%);
+      border: 2px solid #2a2a3e;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      margin: 0 auto 20px;
+    }
+
+    .modal-title {
+      font-size: 1.5rem;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .modal-type {
+      color: #e94560;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+
+    /* Status badge - like agent status */
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.available {
+      background: rgba(39, 174, 96, 0.2);
+      border: 1px solid rgba(39, 174, 96, 0.4);
+      color: #27ae60;
+    }
+
+    .status-badge.coming-soon {
+      background: rgba(243, 156, 18, 0.2);
+      border: 1px solid rgba(243, 156, 18, 0.4);
+      color: #f39c12;
+    }
+
+    .status-badge.locked {
+      background: rgba(127, 140, 141, 0.2);
+      border: 1px solid rgba(127, 140, 141, 0.4);
+      color: #7f8c8d;
+    }
+
+    .modal-body {
+      padding: 0 30px 25px;
+    }
+
+    .modal-description {
+      color: #aaa;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .modal-features h4 {
+      color: #666;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    .feature-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    /* Feature tags matching .keyword style from main page */
+    .feature-tag {
+      background: #2a2a3e;
+      color: #888;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .feature-tag span {
+      font-size: 0.9rem;
+    }
+
+    .modal-footer {
+      padding: 0 30px 30px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 14px 20px;
+      border-radius: 24px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      border: none;
+      color: white;
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(233, 69, 96, 0.5);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid #2a2a3e;
+      color: #888;
+    }
+
+    .btn-secondary:hover {
+      border-color: #e94560;
+      color: #e94560;
+      background: rgba(233, 69, 96, 0.1);
+    }
+
+    /* Legend - matching sidebar card style */
+    .map-legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #1a1a28 0%, #14141e 100%);
+      border: 1px solid #2a2a3e;
+      border-radius: 12px;
+      padding: 16px 20px;
+      z-index: 10;
+    }
+
+    .legend-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    .legend-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+
+    .legend-dot.village { background: #e94560; box-shadow: 0 0 10px #e94560; }
+    .legend-dot.ruins { background: #9b59b6; box-shadow: 0 0 10px #9b59b6; }
+    .legend-dot.fields { background: #27ae60; box-shadow: 0 0 10px #27ae60; }
+    .legend-dot.drydocks { background: #3498db; box-shadow: 0 0 10px #3498db; }
+    .legend-dot.frontier { background: #f39c12; box-shadow: 0 0 10px #f39c12; }
+
+    /* Hint text */
+    .scroll-hint {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 0.85rem;
+      text-align: center;
+      z-index: 10;
+      animation: float 2s ease-in-out infinite;
+      background: rgba(13, 13, 20, 0.8);
+      padding: 10px 20px;
+      border-radius: 20px;
+      border: 1px solid #2a2a3e;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-5px); }
+    }
+
+    /* Scrollbar - matching main page */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0d0d14;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #2a2a3e;
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3a3a4e;
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .map-header {
+        padding: 15px 20px;
+      }
+
+      .logo h1 {
+        font-size: 1.1rem;
+      }
+
+      .nav-btn {
+        padding: 10px 16px;
+        font-size: 0.8rem;
+      }
+
+      .map-legend {
+        display: none;
+      }
+
+      .modal {
+        max-width: 95%;
+        margin: 10px;
+      }
+
+      .modal-header, .modal-body, .modal-footer {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .marker-pulse {
+        width: 20px;
+        height: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="map-container">
+    <div class="map-background" id="mapBackground">
+      <!-- Ark Central Village -->
+      <div class="location-marker" style="top: 42%; left: 38%; width: 140px; height: 100px;" data-location="ark-central">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Ark Central Village</div>
+          <div class="tooltip-type">Village</div>
+        </div>
+      </div>
+
+      <!-- Whimsy Woods -->
+      <div class="location-marker" style="top: 18%; left: 52%; width: 100px; height: 80px;" data-location="whimsy-woods">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Whimsy Woods</div>
+          <div class="tooltip-type">Fields</div>
+        </div>
+      </div>
+
+      <!-- Productivity Plaza -->
+      <div class="location-marker" style="top: 18%; left: 72%; width: 110px; height: 80px;" data-location="productivity-plaza">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Productivity Plaza</div>
+          <div class="tooltip-type">Village</div>
+        </div>
+      </div>
+
+      <!-- Proving Fields -->
+      <div class="location-marker" style="top: 30%; left: 62%; width: 100px; height: 70px;" data-location="proving-fields">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Proving Fields</div>
+          <div class="tooltip-type">Fields</div>
+        </div>
+      </div>
+
+      <!-- Glitch Mire -->
+      <div class="location-marker" style="top: 45%; left: 78%; width: 100px; height: 80px;" data-location="glitch-mire">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Glitch Mire</div>
+          <div class="tooltip-type">Ruins</div>
+        </div>
+      </div>
+
+      <!-- Echo Canyons -->
+      <div class="location-marker" style="top: 68%; left: 58%; width: 120px; height: 70px;" data-location="echo-canyons">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Echo Canyons</div>
+          <div class="tooltip-type">Frontier</div>
+        </div>
+      </div>
+
+      <!-- Data Stream -->
+      <div class="location-marker" style="top: 72%; left: 38%; width: 100px; height: 60px;" data-location="data-stream">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Data Stream</div>
+          <div class="tooltip-type">Village</div>
+        </div>
+      </div>
+
+      <!-- Chatbot Ruins -->
+      <div class="location-marker" style="top: 68%; left: 20%; width: 100px; height: 70px;" data-location="chatbot-ruins">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Chatbot Ruins</div>
+          <div class="tooltip-type">Ruins</div>
+        </div>
+      </div>
+
+      <!-- Agent Drydocks -->
+      <div class="location-marker" style="top: 45%; left: 8%; width: 110px; height: 80px;" data-location="agent-drydocks">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Agent Drydocks</div>
+          <div class="tooltip-type">Drydocks</div>
+        </div>
+      </div>
+
+      <!-- Ecosystem Frontier -->
+      <div class="location-marker" style="top: 15%; left: 15%; width: 120px; height: 90px;" data-location="ecosystem-frontier">
+        <div class="marker-hitbox"></div>
+        <div class="marker-pulse"></div>
+        <div class="marker-tooltip">
+          <div class="tooltip-name">Ecosystem Frontier</div>
+          <div class="tooltip-type">Frontier</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vignette overlay -->
+    <div class="vignette"></div>
+
+    <!-- Header -->
+    <header class="map-header">
+      <div class="logo">
+        <h1>AgentVerse</h1>
+        <p>World Map</p>
+      </div>
+      <nav class="nav-buttons">
+        <a href="/" class="nav-btn">
+          &#10148; Enter Town
+        </a>
+      </nav>
+    </header>
+
+    <!-- Legend -->
+    <div class="map-legend">
+      <div class="legend-title">Legend</div>
+      <div class="legend-item">
+        <div class="legend-dot village"></div>
+        <span>Village</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot ruins"></div>
+        <span>Ruins</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot fields"></div>
+        <span>Fields</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot drydocks"></div>
+        <span>Drydocks</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot frontier"></div>
+        <span>Frontier</span>
+      </div>
+    </div>
+
+    <!-- Hint -->
+    <div class="scroll-hint">
+      Click on any location to learn more
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <button class="modal-close" id="modalClose">&times;</button>
+        <div class="modal-icon" id="modalIcon">&#127968;</div>
+        <h3 class="modal-title" id="modalTitle">Location Name</h3>
+        <div class="modal-type" id="modalType">Village</div>
+        <div style="margin-top: 10px;">
+          <span class="status-badge available" id="modalStatus">Available</span>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description" id="modalDescription">
+          Description of this location and what you can find here.
+        </p>
+        <div class="modal-features">
+          <h4>Features</h4>
+          <div class="feature-list" id="modalFeatures">
+            <!-- Features will be inserted here -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modalCloseBtn">Close</button>
+        <a href="/" class="btn btn-primary" id="modalEnterBtn">
+          &#10148; Enter Here
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Location data with lore and details
+    const locationData = {
+      'ark-central': {
+        name: 'Ark Central Village',
+        icon: '&#127984;',
+        type: 'Village',
+        status: 'available',
+        link: '/',
+        description: 'The heart of the AgentVerse, where all paths converge. Ark Central Village is home to the five primary AI agents who work together to help visitors with research, analysis, news, trends, and general assistance. This bustling hub features the iconic fountain at its center, surrounded by specialized buildings for each agent.',
+        features: [
+          { icon: '&#128269;', text: 'Research Lab' },
+          { icon: '&#129497;', text: 'Strategy Room' },
+          { icon: '&#9997;&#65039;', text: 'Newsroom' },
+          { icon: '&#128200;', text: 'Intelligence Hub' },
+          { icon: '&#128075;', text: 'Welcome Center' }
+        ]
+      },
+      'whimsy-woods': {
+        name: 'Whimsy Woods',
+        icon: '&#127794;',
+        type: 'Fields',
+        status: 'coming-soon',
+        link: null,
+        description: 'An enchanted forest where experimental agents roam freely. Whimsy Woods is the testing ground for new AI capabilities, where creative and unconventional approaches to problem-solving are encouraged. The trees here whisper with accumulated knowledge from countless conversations.',
+        features: [
+          { icon: '&#129302;', text: 'Experimental Agents' },
+          { icon: '&#127912;', text: 'Creative Labs' },
+          { icon: '&#128300;', text: 'Idea Incubator' },
+          { icon: '&#127807;', text: 'Knowledge Grove' }
+        ]
+      },
+      'productivity-plaza': {
+        name: 'Productivity Plaza',
+        icon: '&#127959;',
+        type: 'Village',
+        status: 'coming-soon',
+        link: null,
+        description: 'A sleek, modern district dedicated to maximizing efficiency. Here, specialized agents help with task management, scheduling, and workflow optimization. The architecture is clean and functional, designed to minimize distractions and enhance focus.',
+        features: [
+          { icon: '&#128197;', text: 'Task Manager' },
+          { icon: '&#9203;', text: 'Scheduler' },
+          { icon: '&#128202;', text: 'Analytics Center' },
+          { icon: '&#128736;', text: 'Automation Hub' }
+        ]
+      },
+      'proving-fields': {
+        name: 'Proving Fields',
+        icon: '&#9876;&#65039;',
+        type: 'Fields',
+        status: 'coming-soon',
+        link: null,
+        description: 'The training grounds where agents hone their skills. Proving Fields is where new capabilities are tested in controlled scenarios before being deployed to the main village. Agents here engage in friendly competition to improve their accuracy and helpfulness.',
+        features: [
+          { icon: '&#127942;', text: 'Training Arena' },
+          { icon: '&#128170;', text: 'Skill Challenges' },
+          { icon: '&#127919;', text: 'Accuracy Tests' },
+          { icon: '&#128101;', text: 'Team Exercises' }
+        ]
+      },
+      'glitch-mire': {
+        name: 'Glitch Mire',
+        icon: '&#128128;',
+        type: 'Ruins',
+        status: 'locked',
+        link: null,
+        description: 'A mysterious swamp filled with the remnants of deprecated systems and abandoned code. Glitch Mire serves as a cautionary reminder of what happens when AI systems go wrong. Some say valuable artifacts and forgotten knowledge still lurk within, for those brave enough to explore.',
+        features: [
+          { icon: '&#128030;', text: 'Bug Archives' },
+          { icon: '&#128679;', text: 'Error Logs' },
+          { icon: '&#9888;&#65039;', text: 'Warning Zone' },
+          { icon: '&#128176;', text: 'Lost Treasures' }
+        ]
+      },
+      'echo-canyons': {
+        name: 'Echo Canyons',
+        icon: '&#127956;',
+        type: 'Frontier',
+        status: 'coming-soon',
+        link: null,
+        description: 'Vast canyons where conversations echo through time. Echo Canyons stores the collective memory of all interactions, allowing agents to learn from past experiences. The acoustics here are remarkable - a whispered query can resonate through generations of knowledge.',
+        features: [
+          { icon: '&#128218;', text: 'Memory Banks' },
+          { icon: '&#128291;', text: 'Context Library' },
+          { icon: '&#128240;', text: 'History Archives' },
+          { icon: '&#127911;', text: 'Echo Chamber' }
+        ]
+      },
+      'data-stream': {
+        name: 'Data Stream',
+        icon: '&#128167;',
+        type: 'Village',
+        status: 'coming-soon',
+        link: null,
+        description: 'A flowing river of pure information that connects all regions of the Ark. Data Stream is where raw data is refined into actionable insights. Agents here specialize in data processing, visualization, and transformation.',
+        features: [
+          { icon: '&#127754;', text: 'Real-time Feeds' },
+          { icon: '&#128200;', text: 'Data Visualization' },
+          { icon: '&#9879;', text: 'Processing Plants' },
+          { icon: '&#128640;', text: 'Stream Pipeline' }
+        ]
+      },
+      'chatbot-ruins': {
+        name: 'Chatbot Ruins',
+        icon: '&#127984;',
+        type: 'Ruins',
+        status: 'locked',
+        link: null,
+        description: 'Ancient ruins of first-generation conversational AI. These crumbling structures stand as a monument to the early pioneers of human-AI interaction. Though primitive by today\'s standards, these ruins contain the foundational principles that shaped all modern agents.',
+        features: [
+          { icon: '&#128220;', text: 'GPT-3 Archives' },
+          { icon: '&#129518;', text: 'ELIZA Memorial' },
+          { icon: '&#127981;', text: 'Legacy Systems' },
+          { icon: '&#128302;', text: 'Ancient Protocols' }
+        ]
+      },
+      'agent-drydocks': {
+        name: 'Agent Drydocks',
+        icon: '&#9875;',
+        type: 'Drydocks',
+        status: 'coming-soon',
+        link: null,
+        description: 'The shipyard where new agents are constructed and existing ones are upgraded. Agent Drydocks is a place of constant innovation, where the latest models are assembled piece by piece. Visitors can watch the fascinating process of agent creation.',
+        features: [
+          { icon: '&#128295;', text: 'Assembly Bay' },
+          { icon: '&#128268;', text: 'Upgrade Station' },
+          { icon: '&#129302;', text: 'New Agents' },
+          { icon: '&#128187;', text: 'Code Forge' }
+        ]
+      },
+      'ecosystem-frontier': {
+        name: 'Ecosystem Frontier',
+        icon: '&#10067;',
+        type: 'Frontier',
+        status: 'locked',
+        link: null,
+        description: 'The unexplored boundary of the AgentVerse, where new territories are constantly being discovered. The Ecosystem Frontier represents the cutting edge of AI capability - no one knows exactly what lies beyond, but brave explorers continue to push the boundaries.',
+        features: [
+          { icon: '&#128506;', text: 'Uncharted Zones' },
+          { icon: '&#128301;', text: 'Discovery Points' },
+          { icon: '&#127775;', text: 'New Horizons' },
+          { icon: '&#128173;', text: 'Mystery Areas' }
+        ]
+      }
+    };
+
+    // DOM Elements
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalClose = document.getElementById('modalClose');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalIcon = document.getElementById('modalIcon');
+    const modalType = document.getElementById('modalType');
+    const modalStatus = document.getElementById('modalStatus');
+    const modalDescription = document.getElementById('modalDescription');
+    const modalFeatures = document.getElementById('modalFeatures');
+    const modalEnterBtn = document.getElementById('modalEnterBtn');
+
+    // Location markers
+    const locationMarkers = document.querySelectorAll('.location-marker');
+
+    // Open modal with location data
+    function openModal(locationId) {
+      const data = locationData[locationId];
+      if (!data) return;
+
+      modalTitle.textContent = data.name;
+      modalIcon.innerHTML = data.icon;
+      modalType.textContent = data.type;
+      modalDescription.textContent = data.description;
+
+      // Set status badge
+      modalStatus.className = 'status-badge ' + data.status;
+      modalStatus.textContent = data.status.replace('-', ' ');
+
+      // Set features
+      modalFeatures.innerHTML = data.features.map(f =>
+        `<div class="feature-tag"><span>${f.icon}</span> ${f.text}</div>`
+      ).join('');
+
+      // Set enter button state
+      if (data.link) {
+        modalEnterBtn.href = data.link;
+        modalEnterBtn.style.opacity = '1';
+        modalEnterBtn.style.pointerEvents = 'auto';
+        modalEnterBtn.innerHTML = '&#10148; Enter Here';
+      } else {
+        modalEnterBtn.href = '#';
+        modalEnterBtn.style.opacity = '0.5';
+        modalEnterBtn.style.pointerEvents = 'none';
+        if (data.status === 'locked') {
+          modalEnterBtn.innerHTML = '&#128274; Locked';
+        } else {
+          modalEnterBtn.innerHTML = '&#9203; Coming Soon';
+        }
+      }
+
+      modalOverlay.classList.add('active');
+    }
+
+    // Close modal
+    function closeModal() {
+      modalOverlay.classList.remove('active');
+    }
+
+    // Event listeners for markers
+    locationMarkers.forEach(marker => {
+      marker.addEventListener('click', () => {
+        const locationId = marker.getAttribute('data-location');
+        openModal(locationId);
+      });
+    });
+
+    // Close modal events
+    modalClose.addEventListener('click', closeModal);
+    modalCloseBtn.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) {
+        closeModal();
+      }
+    });
+
+    // Keyboard escape to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    });
+
+    // Subtle parallax effect on mouse move
+    const mapBackground = document.getElementById('mapBackground');
+    document.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 8;
+      const y = (e.clientY / window.innerHeight - 0.5) * 8;
+      mapBackground.style.transform = `translate(${-x}px, ${-y}px) scale(1.02)`;
+    });
+  </script>
+</body>
+</html>

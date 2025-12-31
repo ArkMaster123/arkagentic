@@ -787,6 +787,11 @@ export class TownScene extends Scene {
     // Disable further input while transitioning
     this.input.enabled = false;
     
+    // Update URL with room route
+    const AGENT_TO_ROUTE = (window as any).AGENT_TO_ROUTE || {};
+    const roomSlug = AGENT_TO_ROUTE[zone.agentType] || zone.agentType;
+    window.history.pushState({}, '', `/town/${roomSlug}`);
+    
     // Show retro transition
     if ((window as any).showTransition) {
       (window as any).showTransition(
