@@ -62,5 +62,5 @@ export const MEETING_POINT = {
   y: 240,
 };
 
-// API endpoint (same as arena)
-export const API_BASE_URL = 'http://localhost:3001';
+// API endpoint - use relative path in production, localhost in development
+export const API_BASE_URL = (import.meta as any).env?.DEV ? 'http://localhost:3001' : '/api';
