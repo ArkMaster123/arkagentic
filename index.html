@@ -15,15 +15,675 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #1a1a2e;
+      background-color: #0d0d14;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
-    #game {
+    /* Main 3-column layout */
+    #app-container {
+      display: flex;
       width: 100%;
       height: 100%;
     }
-    
+
+    /* Left Sidebar - Settings & Agents */
+    #left-sidebar {
+      width: 280px;
+      min-width: 280px;
+      height: 100%;
+      background: linear-gradient(180deg, #12121a 0%, #0a0a10 100%);
+      border-right: 1px solid #2a2a3e;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 100;
+      position: relative;
+    }
+
+    #sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #2a2a3e;
+    }
+
+    #sidebar-header h1 {
+      font-size: 1.4rem;
+      color: #e94560;
+      margin-bottom: 4px;
+    }
+
+    #sidebar-header p {
+      font-size: 0.75rem;
+      color: #666;
+    }
+
+    /* Settings Section */
+    #settings-section {
+      padding: 16px 20px;
+      border-bottom: 1px solid #2a2a3e;
+    }
+
+    #settings-section h3 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .setting-row label {
+      font-size: 0.85rem;
+      color: #aaa;
+    }
+
+    .setting-row input[type="range"] {
+      width: 100px;
+      accent-color: #e94560;
+    }
+
+    .setting-row span {
+      font-size: 0.8rem;
+      color: #e94560;
+      min-width: 35px;
+      text-align: right;
+    }
+
+    /* Agent Cards Section */
+    #agents-section {
+      flex: 1;
+      padding: 16px 20px;
+      overflow-y: auto;
+    }
+
+    #agents-section h3 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+
+    .agent-card {
+      background: linear-gradient(135deg, #1a1a28 0%, #14141e 100%);
+      border: 1px solid #2a2a3e;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .agent-card:hover {
+      border-color: #e94560;
+      transform: translateX(4px);
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.15);
+    }
+
+    .agent-card.selected {
+      border-color: #e94560;
+      background: linear-gradient(135deg, #251520 0%, #1a1a28 100%);
+    }
+
+    .agent-sprite-container {
+      width: 40px;
+      height: 50px;
+      background: #0d0d14;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .agent-sprite {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -webkit-image-rendering: pixelated;
+      /* Default: 16px wide sprites at 2x = 32x40 */
+      /* 192px * 2 = 384px total width at 2x scale */
+      width: 32px;
+      height: 40px;
+      background-size: 384px 40px;
+      background-repeat: no-repeat;
+      background-position: 0 0;
+      animation: sprite-walk-16 0.5s steps(3) infinite;
+    }
+
+    /* For 14px wide sprites (may) - 168px / 12 = 14px, at 2x = 28px */
+    .agent-sprite.sprite-14 {
+      width: 28px;
+      height: 40px;
+      /* 168px * 2 = 336px total width at 2x scale */
+      background-size: 336px 40px;
+      animation: sprite-walk-14 0.5s steps(3) infinite;
+    }
+
+    @keyframes sprite-walk-16 {
+      from { background-position: 0 0; }
+      to { background-position: -96px 0; } /* 3 frames * 32px = 96px */
+    }
+
+    @keyframes sprite-walk-14 {
+      from { background-position: 0 0; }
+      to { background-position: -84px 0; } /* 3 frames * 28px = 84px */
+    }
+
+    .agent-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .agent-info h4 {
+      font-size: 0.95rem;
+      color: #fff;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .agent-info h4 .emoji {
+      font-size: 1rem;
+    }
+
+    .agent-info .role {
+      font-size: 0.75rem;
+      color: #888;
+    }
+
+    .agent-status {
+      width: 8px;
+      height: 8px;
+      background: #27ae60;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .agent-status.busy {
+      background: #f39c12;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Center - Game Area */
+    #game-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      min-width: 0; /* Allow flex item to shrink */
+      overflow: hidden;
+    }
+
+    #game-controls {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      padding: 8px 16px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+    }
+
+    #game-controls button {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: #e94560;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #game-controls button:hover {
+      background: #ff6b8a;
+    }
+
+    #game-controls span {
+      color: white;
+      font-size: 13px;
+      min-width: 35px;
+      text-align: center;
+    }
+
+    #game {
+      width: 800px;
+      height: 600px;
+      min-width: 800px;
+      min-height: 600px;
+      max-width: 800px;
+      max-height: 600px;
+      border: 3px solid #e94560;
+      border-radius: 12px;
+      box-shadow: 0 0 40px rgba(233, 69, 96, 0.2);
+      overflow: hidden;
+    }
+
+    #game canvas {
+      display: block !important;
+      width: 800px !important;
+      height: 600px !important;
+    }
+
+    /* Right Sidebar - Chat */
+    #right-sidebar {
+      width: 340px;
+      min-width: 340px;
+      height: 100%;
+      background: linear-gradient(180deg, #12121a 0%, #0a0a10 100%);
+      border-left: 1px solid #2a2a3e;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      position: relative;
+    }
+
+    #chat-header {
+      padding: 20px;
+      border-bottom: 1px solid #2a2a3e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #chat-header h2 {
+      font-size: 1.1rem;
+      color: #fff;
+    }
+
+    #chat-status {
+      font-size: 0.75rem;
+      color: #27ae60;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #chat-status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: #27ae60;
+      border-radius: 50%;
+    }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .chat-message {
+      margin-bottom: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-message.user {
+      text-align: right;
+    }
+
+    .chat-message.user .bubble {
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      color: white;
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 16px 16px 4px 16px;
+      max-width: 85%;
+      text-align: left;
+    }
+
+    .chat-message.agent .bubble {
+      background: #1a1a28;
+      color: #eee;
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 16px 16px 16px 4px;
+      max-width: 85%;
+      border: 1px solid #2a2a3e;
+    }
+
+    .chat-message .agent-name {
+      font-size: 0.7rem;
+      color: #e94560;
+      margin-bottom: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chat-message .timestamp {
+      font-size: 0.65rem;
+      color: #555;
+      margin-top: 4px;
+    }
+
+    .chat-message .bubble p {
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    #chat-input-container {
+      padding: 16px;
+      border-top: 1px solid #2a2a3e;
+      display: flex;
+      gap: 10px;
+    }
+
+    #chat-input {
+      flex: 1;
+      background: #0d0d14;
+      border: 1px solid #2a2a3e;
+      border-radius: 24px;
+      padding: 12px 18px;
+      color: white;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #chat-input:focus {
+      border-color: #e94560;
+    }
+
+    #chat-input::placeholder {
+      color: #555;
+    }
+
+    #chat-send {
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      border: none;
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #chat-send:hover {
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+    }
+
+    #chat-send:active {
+      transform: scale(0.95);
+    }
+
+    #chat-send:disabled {
+      background: #333;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 10px 14px;
+    }
+
+    .typing-indicator span {
+      width: 8px;
+      height: 8px;
+      background: #e94560;
+      border-radius: 50%;
+      animation: typing 1.4s infinite;
+    }
+
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    /* Welcome message */
+    .welcome-message {
+      text-align: center;
+      color: #555;
+      font-size: 0.85rem;
+      padding: 40px 20px;
+    }
+
+    .welcome-message .emoji {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: 12px;
+    }
+
+    /* Agent Detail Modal */
+    #agent-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #agent-modal.show {
+      display: flex;
+    }
+
+    #agent-modal-content {
+      background: linear-gradient(135deg, #1a1a28 0%, #12121a 100%);
+      border: 2px solid #e94560;
+      border-radius: 16px;
+      padding: 30px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      position: relative;
+      animation: modalIn 0.3s ease;
+    }
+
+    @keyframes modalIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    #agent-modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 24px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    #agent-modal-close:hover {
+      color: #e94560;
+    }
+
+    #agent-modal-sprite {
+      width: 80px;
+      height: 100px;
+      margin: 0 auto 20px;
+      background: #0d0d14;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #agent-modal-sprite .agent-sprite {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -webkit-image-rendering: pixelated;
+      /* Default: 16px wide sprites at 4x = 64x80 */
+      /* 192px * 4 = 768px total width at 4x scale */
+      width: 64px;
+      height: 80px;
+      background-size: 768px 80px;
+      background-repeat: no-repeat;
+      animation: sprite-walk-large-16 0.5s steps(3) infinite;
+    }
+
+    #agent-modal-sprite .agent-sprite.sprite-14 {
+      /* 168px * 4 = 672px total width at 4x scale */
+      width: 56px;
+      height: 80px;
+      background-size: 672px 80px;
+      animation: sprite-walk-large-14 0.5s steps(3) infinite;
+    }
+
+    @keyframes sprite-walk-large-16 {
+      from { background-position: 0 0; }
+      to { background-position: -192px 0; } /* 3 frames * 64px = 192px */
+    }
+
+    @keyframes sprite-walk-large-14 {
+      from { background-position: 0 0; }
+      to { background-position: -168px 0; } /* 3 frames * 56px = 168px */
+    }
+
+    #agent-modal h3 {
+      font-size: 1.5rem;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    #agent-modal .modal-role {
+      color: #e94560;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+
+    #agent-modal .modal-description {
+      color: #aaa;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    #agent-modal .modal-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    #agent-modal .keyword {
+      background: #2a2a3e;
+      color: #888;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+
+    /* Retro Transition Overlay */
+    #retro-transition {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #retro-transition.active {
+      display: flex;
+    }
+
+    #retro-transition.visible {
+      opacity: 1;
+    }
+
+    .transition-content {
+      text-align: center;
+    }
+
+    .transition-sprite {
+      width: 64px;
+      height: 80px;
+      margin: 0 auto 20px;
+      image-rendering: pixelated;
+      background-size: 768px 80px;
+      background-repeat: no-repeat;
+      animation: sprite-walk-transition 0.5s steps(3) infinite;
+    }
+
+    @keyframes sprite-walk-transition {
+      from { background-position: 0 0; }
+      to { background-position: -192px 0; }
+    }
+
+    .transition-text {
+      color: #fff;
+      font-size: 1.2rem;
+      font-family: 'Courier New', monospace;
+      margin-bottom: 16px;
+      letter-spacing: 2px;
+    }
+
+    .loading-dots {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .loading-dots span {
+      width: 12px;
+      height: 12px;
+      background: #e94560;
+      border-radius: 2px;
+      animation: dot-blink 1s steps(1) infinite;
+    }
+
+    .loading-dots span:nth-child(2) { animation-delay: 0.33s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.66s; }
+
+    @keyframes dot-blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0.2; }
+    }
+
     /* Loading overlay */
     #loading-overlay {
       position: fixed;
@@ -31,7 +691,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      background: #0d0d14;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -48,13 +708,12 @@
     .loading-title {
       font-size: 2.5rem;
       color: #e94560;
-      margin-bottom: 1rem;
-      text-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+      margin-bottom: 0.5rem;
     }
     
     .loading-subtitle {
-      font-size: 1rem;
-      color: #0f3460;
+      font-size: 0.9rem;
+      color: #666;
       margin-bottom: 2rem;
     }
     
@@ -81,74 +740,26 @@
     }
     
     .loading-text {
-      color: #ffffff;
-      font-size: 0.9rem;
-    }
-    
-    /* Instructions panel */
-    #instructions {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 15px;
-      border-radius: 10px;
+      color: #888;
       font-size: 0.85rem;
-      max-width: 250px;
-      z-index: 100;
     }
-    
-    #instructions h3 {
-      margin-bottom: 10px;
-      color: #e94560;
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
     }
-    
-    #instructions ul {
-      list-style: none;
-      padding: 0;
+
+    ::-webkit-scrollbar-track {
+      background: #0d0d14;
     }
-    
-    #instructions li {
-      margin-bottom: 5px;
-      padding-left: 20px;
-      position: relative;
+
+    ::-webkit-scrollbar-thumb {
+      background: #2a2a3e;
+      border-radius: 3px;
     }
-    
-    #instructions li:before {
-      content: "→";
-      position: absolute;
-      left: 0;
-      color: #e94560;
-    }
-    
-    /* Agent legend */
-    #agent-legend {
-      position: fixed;
-      bottom: 100px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 15px;
-      border-radius: 10px;
-      font-size: 0.8rem;
-      z-index: 100;
-    }
-    
-    #agent-legend h4 {
-      margin-bottom: 10px;
-      color: #e94560;
-    }
-    
-    .agent-entry {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 5px;
-    }
-    
-    .agent-entry .emoji {
-      font-size: 1.2rem;
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3a3a4e;
     }
   </style>
 </head>
@@ -158,62 +769,347 @@
     <h1 class="loading-title">AgentVerse</h1>
     <p class="loading-subtitle">Multi-Agent Visual Collaboration</p>
     <div class="agent-icons">
-      <span class="agent-icon">🔍</span>
-      <span class="agent-icon">🧙</span>
-      <span class="agent-icon">✍️</span>
-      <span class="agent-icon">📈</span>
-      <span class="agent-icon">👋</span>
+      <span class="agent-icon">&#128269;</span>
+      <span class="agent-icon">&#129497;</span>
+      <span class="agent-icon">&#9997;&#65039;</span>
+      <span class="agent-icon">&#128200;</span>
+      <span class="agent-icon">&#128075;</span>
     </div>
     <p class="loading-text">Loading agents...</p>
   </div>
 
-  <!-- Instructions -->
-  <div id="instructions">
-    <h3>How to Use</h3>
-    <ul>
-      <li>Press <strong>ENTER</strong> to ask a question</li>
-      <li>Watch agents walk to meeting point</li>
-      <li>See them discuss and collaborate</li>
-      <li>Get your answer from the team!</li>
-    </ul>
+  <!-- Main App Container -->
+  <div id="app-container">
+    <!-- Left Sidebar -->
+    <div id="left-sidebar">
+      <div id="sidebar-header">
+        <h1>AgentVerse</h1>
+        <p>Multi-Agent Collaboration</p>
+      </div>
+
+      <!-- Settings -->
+      <div id="settings-section">
+        <h3>Settings</h3>
+        <div class="setting-row">
+          <label>Zoom</label>
+          <input type="range" id="zoom-slider" min="1" max="4" step="0.5" value="2" />
+          <span id="zoom-value">2x</span>
+        </div>
+        <div class="setting-row">
+          <label>Sound</label>
+          <input type="range" id="sound-slider" min="0" max="100" value="50" />
+          <span id="sound-value">50%</span>
+        </div>
+      </div>
+
+      <!-- Agent Cards -->
+      <div id="agents-section">
+        <h3>Your Agents</h3>
+        
+        <div class="agent-card" data-agent="scout">
+          <div class="agent-sprite-container">
+            <div class="agent-sprite" style="background-image: url('/assets/sprites/archie.png');"></div>
+          </div>
+          <div class="agent-info">
+            <h4><span class="emoji">&#128269;</span> Scout</h4>
+            <div class="role">Research Specialist</div>
+          </div>
+          <div class="agent-status"></div>
+        </div>
+
+        <div class="agent-card" data-agent="sage">
+          <div class="agent-sprite-container">
+            <div class="agent-sprite" style="background-image: url('/assets/sprites/steven.png');"></div>
+          </div>
+          <div class="agent-info">
+            <h4><span class="emoji">&#129497;</span> Sage</h4>
+            <div class="role">Strategic Analyst</div>
+          </div>
+          <div class="agent-status"></div>
+        </div>
+
+        <div class="agent-card" data-agent="chronicle">
+          <div class="agent-sprite-container">
+            <div class="agent-sprite" style="background-image: url('/assets/sprites/birch.png');"></div>
+          </div>
+          <div class="agent-info">
+            <h4><span class="emoji">&#9997;&#65039;</span> Chronicle</h4>
+            <div class="role">Newsroom Editor</div>
+          </div>
+          <div class="agent-status"></div>
+        </div>
+
+        <div class="agent-card" data-agent="trends">
+          <div class="agent-sprite-container">
+            <div class="agent-sprite" style="background-image: url('/assets/sprites/maxie.png');"></div>
+          </div>
+          <div class="agent-info">
+            <h4><span class="emoji">&#128200;</span> Trends</h4>
+            <div class="role">Intelligence Analyst</div>
+          </div>
+          <div class="agent-status"></div>
+        </div>
+
+        <div class="agent-card" data-agent="maven">
+          <div class="agent-sprite-container">
+            <div class="agent-sprite sprite-14" style="background-image: url('/assets/sprites/may.png');"></div>
+          </div>
+          <div class="agent-info">
+            <h4><span class="emoji">&#128075;</span> Maven</h4>
+            <div class="role">General Assistant</div>
+          </div>
+          <div class="agent-status"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center - Game Area -->
+    <div id="game-area">
+      <div id="game-controls">
+        <button id="zoom-out">-</button>
+        <span id="zoom-level">2x</span>
+        <button id="zoom-in">+</button>
+      </div>
+      <div id="game"></div>
+    </div>
+
+    <!-- Right Sidebar - Chat -->
+    <div id="right-sidebar">
+      <div id="chat-header">
+        <h2>Agent Chat</h2>
+        <div id="chat-status">Ready</div>
+      </div>
+      <div id="chat-messages">
+        <div class="welcome-message">
+          <span class="emoji">&#128075;</span>
+          Ask a question and watch the agents collaborate!
+        </div>
+      </div>
+      <div id="chat-input-container">
+        <input type="text" id="chat-input" placeholder="Ask the agents something..." autocomplete="off" />
+        <button id="chat-send">&#10148;</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Agent Legend -->
-  <div id="agent-legend">
-    <h4>Your Agent Team</h4>
-    <div class="agent-entry">
-      <span class="emoji">🔍</span>
-      <span>Scout - Research</span>
-    </div>
-    <div class="agent-entry">
-      <span class="emoji">🧙</span>
-      <span>Sage - Analysis</span>
-    </div>
-    <div class="agent-entry">
-      <span class="emoji">✍️</span>
-      <span>Chronicle - Writing</span>
-    </div>
-    <div class="agent-entry">
-      <span class="emoji">📈</span>
-      <span>Trends - News</span>
-    </div>
-    <div class="agent-entry">
-      <span class="emoji">👋</span>
-      <span>Maven - General</span>
+  <!-- Retro Loading Transition -->
+  <div id="retro-transition">
+    <div class="transition-content">
+      <div class="transition-sprite"></div>
+      <div class="transition-text">Entering...</div>
+      <div class="loading-dots">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
     </div>
   </div>
 
-  <!-- Game container -->
-  <div id="game"></div>
+  <!-- Agent Detail Modal -->
+  <div id="agent-modal">
+    <div id="agent-modal-content">
+      <button id="agent-modal-close">&times;</button>
+      <div id="agent-modal-sprite">
+        <div class="agent-sprite"></div>
+      </div>
+      <h3 id="agent-modal-name">Agent Name</h3>
+      <div class="modal-role" id="agent-modal-role">Role</div>
+      <p class="modal-description" id="agent-modal-description">
+        Description of what this agent does and how they can help you.
+      </p>
+      <div class="modal-keywords" id="agent-modal-keywords">
+        <!-- Keywords will be inserted here -->
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="/src/index.ts"></script>
   <script>
+    // Agent data for modal
+    const agentData = {
+      scout: {
+        name: 'Scout',
+        emoji: '&#128269;',
+        role: 'Research Specialist',
+        sprite: '/assets/sprites/archie.png',
+        spriteWidth: 16,
+        description: 'Scout excels at finding information, researching companies, and discovering prospects. Perfect for when you need to look something up or find specific data.',
+        keywords: ['research', 'find', 'search', 'company', 'prospect', 'people']
+      },
+      sage: {
+        name: 'Sage',
+        emoji: '&#129497;',
+        role: 'Strategic Analyst',
+        sprite: '/assets/sprites/steven.png',
+        spriteWidth: 16,
+        description: 'Sage provides deep analysis, comparisons, and strategic recommendations. Great for making decisions or understanding complex topics.',
+        keywords: ['analyze', 'compare', 'strategy', 'recommend', 'versus']
+      },
+      chronicle: {
+        name: 'Chronicle',
+        emoji: '&#9997;&#65039;',
+        role: 'Newsroom Editor',
+        sprite: '/assets/sprites/birch.png',
+        spriteWidth: 16,
+        description: 'Chronicle specializes in writing articles, news summaries, and content creation. Ideal for generating written content or summarizing news.',
+        keywords: ['article', 'write', 'news', 'content', 'summary']
+      },
+      trends: {
+        name: 'Trends',
+        emoji: '&#128200;',
+        role: 'Intelligence Analyst',
+        sprite: '/assets/sprites/maxie.png',
+        spriteWidth: 16,
+        description: 'Trends keeps track of what\'s happening now - breaking news, trending topics, and market movements. Your go-to for current events.',
+        keywords: ['trending', 'breaking', 'news', 'this week', 'buzz']
+      },
+      maven: {
+        name: 'Maven',
+        emoji: '&#128075;',
+        role: 'General Assistant',
+        sprite: '/assets/sprites/may.png',
+        spriteWidth: 14,
+        description: 'Maven is your friendly general assistant, great for casual conversations, general questions, and coordinating with other agents.',
+        keywords: ['hello', 'help', 'general', 'weather', 'question']
+      }
+    };
+
     // Hide loading overlay when game is ready
     window.addEventListener('load', () => {
       setTimeout(() => {
         document.getElementById('loading-overlay').classList.add('hidden');
       }, 2000);
     });
+
+    // Zoom controls
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      if (window.game && window.game.scene.scenes[1]) {
+        const scene = window.game.scene.scenes[1];
+        const cam = scene.cameras.main;
+        const newZoom = Math.max(1, cam.zoom - 0.5);
+        cam.setZoom(newZoom);
+        document.getElementById('zoom-level').textContent = newZoom + 'x';
+        document.getElementById('zoom-slider').value = newZoom;
+        document.getElementById('zoom-value').textContent = newZoom + 'x';
+      }
+    });
+
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      if (window.game && window.game.scene.scenes[1]) {
+        const scene = window.game.scene.scenes[1];
+        const cam = scene.cameras.main;
+        const newZoom = Math.min(4, cam.zoom + 0.5);
+        cam.setZoom(newZoom);
+        document.getElementById('zoom-level').textContent = newZoom + 'x';
+        document.getElementById('zoom-slider').value = newZoom;
+        document.getElementById('zoom-value').textContent = newZoom + 'x';
+      }
+    });
+
+    // Zoom slider
+    document.getElementById('zoom-slider').addEventListener('input', (e) => {
+      const newZoom = parseFloat(e.target.value);
+      document.getElementById('zoom-value').textContent = newZoom + 'x';
+      document.getElementById('zoom-level').textContent = newZoom + 'x';
+      if (window.game && window.game.scene.scenes[1]) {
+        const scene = window.game.scene.scenes[1];
+        scene.cameras.main.setZoom(newZoom);
+      }
+    });
+
+    // Sound slider (placeholder for future)
+    document.getElementById('sound-slider').addEventListener('input', (e) => {
+      document.getElementById('sound-value').textContent = e.target.value + '%';
+    });
+
+    // Agent card click handlers
+    document.querySelectorAll('.agent-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const agentId = card.dataset.agent;
+        const agent = agentData[agentId];
+        if (agent) {
+          showAgentModal(agent);
+        }
+      });
+    });
+
+    // Show agent modal
+    function showAgentModal(agent) {
+      const modal = document.getElementById('agent-modal');
+      document.getElementById('agent-modal-name').innerHTML = agent.emoji + ' ' + agent.name;
+      document.getElementById('agent-modal-role').textContent = agent.role;
+      document.getElementById('agent-modal-description').textContent = agent.description;
+      
+      // Set sprite with correct class for width
+      const spriteEl = document.querySelector('#agent-modal-sprite .agent-sprite');
+      spriteEl.style.backgroundImage = `url('${agent.sprite}')`;
+      spriteEl.classList.remove('sprite-14');
+      if (agent.spriteWidth === 14) {
+        spriteEl.classList.add('sprite-14');
+      }
+      
+      // Set keywords
+      const keywordsEl = document.getElementById('agent-modal-keywords');
+      keywordsEl.innerHTML = agent.keywords.map(k => `<span class="keyword">${k}</span>`).join('');
+      
+      modal.classList.add('show');
+    }
+
+    // Close modal
+    document.getElementById('agent-modal-close').addEventListener('click', () => {
+      document.getElementById('agent-modal').classList.remove('show');
+    });
+
+    document.getElementById('agent-modal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('agent-modal')) {
+        document.getElementById('agent-modal').classList.remove('show');
+      }
+    });
+
+    // Retro transition functions
+    window.showTransition = function(agentSprite, text, callback) {
+      const transition = document.getElementById('retro-transition');
+      const spriteEl = transition.querySelector('.transition-sprite');
+      const textEl = transition.querySelector('.transition-text');
+      
+      // Set sprite and text
+      spriteEl.style.backgroundImage = `url('${agentSprite}')`;
+      textEl.textContent = text || 'Entering...';
+      
+      // Show transition
+      transition.classList.add('active');
+      requestAnimationFrame(() => {
+        transition.classList.add('visible');
+      });
+      
+      // After animation, execute callback
+      setTimeout(() => {
+        if (callback) callback();
+      }, 1500);
+    };
+
+    window.hideTransition = function(callback) {
+      const transition = document.getElementById('retro-transition');
+      transition.classList.remove('visible');
+      
+      setTimeout(() => {
+        transition.classList.remove('active');
+        if (callback) callback();
+      }, 300);
+    };
+
+    // Expose function to update agent status from game
+    window.updateAgentStatus = function(agentId, isBusy) {
+      const card = document.querySelector(`.agent-card[data-agent="${agentId}"]`);
+      if (card) {
+        const status = card.querySelector('.agent-status');
+        if (isBusy) {
+          status.classList.add('busy');
+        } else {
+          status.classList.remove('busy');
+        }
+      }
+    };
   </script>
 </body>
 </html>

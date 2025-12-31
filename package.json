@@ -10,6 +10,7 @@
     "server": "npx tsx server.ts"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "phaser": "^3.80.1",
     "phaser3-rex-plugins": "^1.80.4"
   },

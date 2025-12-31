@@ -9,12 +9,14 @@
 | If you want... | Use this |
 |----------------|----------|
 | Production-ready, AWS-native, great MCP support | **Strands Agents (AWS)** |
+| Actor-model, explicit task hierarchy, research-backed | **Langroid (CMU/UW)** |
 | TypeScript/Vercel ecosystem, simple patterns | **AI SDK (Vercel)** |
 | Maximum flexibility, graph-based workflows | **LangGraph** |
 | Quick prototyping, role-based teams | **CrewAI** |
 | Research/experimental, conversational agents | **AutoGen (Microsoft)** |
 
 **My pick for us: Strands Agents** - native MCP, production-ready, Python, model-agnostic.
+**Strong alternative: Langroid** - if you want explicit control over agent communication.
 
 ---
 
@@ -23,6 +25,7 @@
 | Framework | Language | MCP Support | Multi-Agent Patterns | Complexity | Production Ready | Best For |
 |-----------|----------|-------------|---------------------|------------|------------------|----------|
 | **Strands Agents (AWS)** | Python | Native | Agents-as-Tools, Swarms, Graphs, Workflows | Medium | Yes | Enterprise, AWS users |
+| **Langroid (CMU/UW)** | Python | Via tools | Actor-model, Task hierarchy, Message passing | Medium | Yes | Explicit orchestration |
 | **AI SDK (Vercel)** | TypeScript | Yes (built-in) | Tool loops, Workflows | Low | Yes | Next.js/Vercel apps |
 | **LangGraph** | Python/JS | Via tools | Any graph topology | High | Yes | Complex state machines |
 | **CrewAI** | Python | Via tools | Role-based crews | Low | Moderate | Quick prototyping |
@@ -128,7 +131,197 @@ graph = builder.build()
 
 ---
 
-## 2. AI SDK (Vercel)
+## 2. Langroid (CMU/UW-Madison)
+
+**Repository**: https://github.com/langroid/langroid  
+**Docs**: https://langroid.github.io/langroid/  
+**Discord**: https://discord.gg/langroid
+
+### Overview
+Langroid is an intuitive, lightweight, extensible Python framework from CMU and UW-Madison researchers. Based on the **Actor Framework** paradigm - you set up Agents, equip them with components (LLM, vector-store, tools), assign them Tasks, and have them collaboratively solve problems by **exchanging messages**.
+
+### Core Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Agent** | An entity with an LLM, optional tools, and a system prompt |
+| **Task** | A wrapper around an agent that manages conversation flow |
+| **SubTask** | Tasks can have subtasks - creating hierarchical delegation |
+| **Message Passing** | Agents communicate by sending messages to each other |
+| **Tools** | Functions agents can call (like Strands, but explicit control) |
+
+### Multi-Agent Patterns Supported
+
+| Pattern | Description | Use Case |
+|---------|-------------|----------|
+| **Task Hierarchy** | Parent tasks delegate to child subtasks | Manager/worker patterns |
+| **Message Routing** | Agents send messages to specific recipients | Explicit communication |
+| **Tool Delegation** | Agents use tools that invoke other agents | Specialist delegation |
+| **Conversational** | Agents discuss until consensus | Brainstorming, debate |
+
+### Code Example: Two-Agent Discussion
+
+```python
+import langroid as lr
+import langroid.language_models as lm
+from langroid.agent.tool_message import ToolMessage
+
+# Custom tool to signal completion
+class FinalResultTool(ToolMessage):
+    request: str = "final_result"
+    purpose: str = "Present the final answer"
+    result: str
+
+# Configure LLM
+llm_config = lm.OpenAIGPTConfig(
+    chat_model=lm.OpenAIChatModel.GPT4o,
+)
+
+# Setup Alice agent
+alice = lr.ChatAgent(
+    lr.ChatAgentConfig(
+        llm=llm_config,
+        name="Alice",
+        system_message="""
+        You will discuss a problem with Bob.
+        When solved, use the `final_result` tool to return the answer.
+        Keep responses concise.
+        """,
+    )
+)
+alice.enable_message(FinalResultTool)
+alice_task = lr.Task(alice, interactive=False)[FinalResultTool]
+
+# Setup Bob agent
+bob = lr.ChatAgent(
+    lr.ChatAgentConfig(
+        llm=llm_config,
+        name="Bob",
+        system_message="""
+        You will discuss a problem with Alice.
+        When solved, use the `final_result` tool to return the answer.
+        Keep responses concise.
+        """,
+    )
+)
+bob.enable_message(FinalResultTool)
+bob_task = lr.Task(bob, interactive=False, single_round=True)
+
+# Bob is Alice's subtask - messages flow between them
+alice_task.add_sub_task(bob_task)
+
+# Run the discussion
+result = alice_task.run("What is the best programming language for AI?")
+print(f"Final answer: {result.result}")
+```
+
+### Code Example: Dynamic Agent Spawning with TaskTool
+
+```python
+import langroid as lr
+from langroid.agent.tools.orchestration import DoneTool
+from langroid.agent.tools.task_tool import TaskTool
+
+# Planner that spawns sub-agents dynamically
+class PlannerConfig(lr.ChatAgentConfig):
+    name: str = "Planner"
+    system_message: str = f"""
+    You orchestrate a workflow by spawning specialized sub-agents.
+    
+    Use the `{TaskTool.name()}` to spawn agents for:
+    - Research tasks
+    - Analysis tasks
+    - Writing tasks
+    
+    When done, use `{DoneTool.name()}` to signal completion.
+    """
+
+# Define sub-agent configs
+researcher_cfg = lr.ChatAgentConfig(
+    name="Researcher",
+    system_message="You research topics thoroughly."
+)
+
+analyst_cfg = lr.ChatAgentConfig(
+    name="Analyst", 
+    system_message="You analyze data and provide insights."
+)
+
+# Create planner with TaskTool
+planner = lr.ChatAgent(PlannerConfig())
+task = lr.Task(
+    planner,
+    interactive=False,
+    config=lr.TaskConfig(
+        tools=[TaskTool.name(), DoneTool.name()],
+        tool_code_execution_config={
+            TaskTool.name(): {
+                "Researcher": researcher_cfg,
+                "Analyst": analyst_cfg,
+            }
+        },
+    ),
+)
+
+# Run - planner will spawn sub-agents as needed
+await task.run_async("Research AI frameworks and analyze which is best")
+```
+
+### Code Example: RecipientTool for Explicit Routing
+
+```python
+from langroid.agent.tools.recipient_tool import RecipientTool
+
+# Enable explicit message routing
+master = lr.ChatAgent(
+    lr.ChatAgentConfig(
+        name="Master",
+        system_message="""
+        You coordinate between Researcher and Writer.
+        Use the RecipientTool to send messages to specific agents.
+        """
+    )
+)
+master.enable_message(RecipientTool)
+
+# Messages can be routed explicitly
+# master -> RecipientTool(recipient="Researcher", message="Find info on X")
+# Researcher responds -> Master receives response
+```
+
+### Strands vs Langroid Comparison
+
+| Aspect | Strands | Langroid |
+|--------|---------|----------|
+| **Paradigm** | Model-driven (LLM decides) | Actor-model (explicit control) |
+| **Agent Communication** | Handoff tool, shared context | Message passing, task hierarchy |
+| **Orchestration** | Swarm auto-coordinates | You define task relationships |
+| **Dynamic Spawning** | Agents-as-Tools pattern | TaskTool spawns sub-agents |
+| **MCP Support** | Native, first-class | Via custom tools |
+| **Learning Curve** | Lower | Medium |
+| **Control Level** | Less explicit | Very explicit |
+| **Best For** | "Let LLM figure it out" | "I want precise control" |
+
+### Pros
+- **Explicit control** - You define exactly how agents communicate
+- **Actor model** - Clean mental model from distributed systems
+- **Research pedigree** - CMU/UW-Madison academics
+- **Mature** - More examples and community resources
+- **Flexible** - Build any orchestration pattern
+- **Great docs** - Comprehensive documentation and examples
+
+### Cons
+- **More boilerplate** - Explicit control means more code
+- **No native MCP** - Must wrap MCP tools manually
+- **Python only** - No TypeScript/JavaScript version
+- **Steeper learning curve** - Actor model concepts to learn
+
+### Verdict
+**Excellent alternative to Strands** if you want explicit control over agent communication. Better for complex orchestration where you need to precisely control message flow. Choose Strands for simpler "let the LLM decide" patterns; choose Langroid when you need deterministic, auditable agent interactions.
+
+---
+
+## 3. AI SDK (Vercel)
 
 **Repository**: https://github.com/vercel/ai  
 **Docs**: https://ai-sdk.dev/docs/agents/overview
@@ -214,7 +407,7 @@ Good if we're in TypeScript/Next.js ecosystem, but we'd need to build multi-agen
 
 ---
 
-## 3. LangGraph
+## 4. LangGraph
 
 **Repository**: https://github.com/langchain-ai/langgraph  
 **Docs**: https://langchain-ai.github.io/langgraph/
@@ -267,7 +460,7 @@ Powerful but might be overkill. Consider if we need very complex conditional flo
 
 ---
 
-## 4. CrewAI
+## 5. CrewAI
 
 **Repository**: https://github.com/joaomdmoura/crewAI  
 **Docs**: https://docs.crewai.com/
@@ -328,7 +521,7 @@ Great for quick prototypes but might hit limits for complex orchestration.
 
 ---
 
-## 5. AutoGen (Microsoft)
+## 6. AutoGen (Microsoft)
 
 **Repository**: https://github.com/microsoft/autogen  
 **Docs**: https://microsoft.github.io/autogen/
@@ -375,7 +568,7 @@ Best for experimentation, not for our production use case.
 
 ---
 
-## 6. OpenAI Swarm
+## 7. OpenAI Swarm
 
 **Repository**: https://github.com/openai/swarm
 
@@ -595,6 +788,9 @@ def call_scout(query: str) -> str:
 
 - [Strands Agents Docs](https://strandsagents.com/latest/)
 - [Strands GitHub](https://github.com/strands-agents/sdk-python)
+- [Langroid Docs](https://langroid.github.io/langroid/)
+- [Langroid GitHub](https://github.com/langroid/langroid)
+- [Langroid Examples](https://github.com/langroid/langroid-examples)
 - [AI SDK Agents Docs](https://ai-sdk.dev/docs/agents/overview)
 - [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
 - [Playwriter (MCP optimization)](https://github.com/remorses/playwriter)

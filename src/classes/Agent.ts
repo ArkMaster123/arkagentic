@@ -7,6 +7,16 @@ import type RexUIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 
 type AgentType = keyof typeof AGENTS;
 
+// Simple A* pathfinder
+interface PathNode {
+  x: number;
+  y: number;
+  g: number; // Cost from start
+  h: number; // Heuristic to end
+  f: number; // Total cost
+  parent: PathNode | null;
+}
+
 export class Agent extends Actor {
   public id: string;
   public agentType: AgentType;
@@ -14,12 +24,25 @@ export class Agent extends Actor {
   
   private textBox: any = undefined;
   private nameTag: Phaser.GameObjects.Text | undefined;
-  private isMoving: boolean = false;
-  private targetX: number = 0;
-  private targetY: number = 0;
-  private moveSpeed: number = 60;
   private isSpeaking: boolean = false;
   private thoughtBubble: any = undefined;
+  
+  // Grid-based movement
+  private tileX: number = 0;
+  private tileY: number = 0;
+  private path: { x: number; y: number }[] = [];
+  private isMovingToTile: boolean = false;
+  private moveSpeed: number = 80; // pixels per second
+  private targetWorldX: number = 0;
+  private targetWorldY: number = 0;
+  
+  // Wandering behavior
+  private isWandering: boolean = true;
+  private wanderTimer: Phaser.Time.TimerEvent | null = null;
+  private homeTileX: number = 0;
+  private homeTileY: number = 0;
+  private wanderRadius: number = 5; // tiles
+  private isBusy: boolean = false; // true when responding to a query
 
   constructor(
     scene: Phaser.Scene,
@@ -35,22 +58,42 @@ export class Agent extends Actor {
     this.agentType = agentType;
     this.setName(agentConfig.name);
     
-    // Physics setup
+    // Calculate initial tile position
+    const townScene = scene as TownScene;
+    const tilePos = townScene.worldToTile(x, y);
+    this.tileX = tilePos.x;
+    this.tileY = tilePos.y;
+    
+    // Snap to tile center
+    const worldPos = townScene.tileToWorld(this.tileX, this.tileY);
+    this.setPosition(worldPos.x, worldPos.y);
+    
+    // Mark initial tile as occupied
+    townScene.occupyTile(this.tileX, this.tileY);
+    
+    // Store home position for wandering
+    this.homeTileX = this.tileX;
+    this.homeTileY = this.tileY;
+    
+    // Physics setup (minimal - just for sprite handling)
     this.getBody().setSize(14, 16);
     this.getBody().setOffset(0, 4);
-    this.getBody().setImmovable(false);
-    this.setOrigin(0, 0.2);
+    this.getBody().setImmovable(true); // Don't use physics for movement
+    this.setOrigin(0.5, 0.5);
 
     this.initAnimations();
     this.createNameTag();
     this.listenToEvents();
+    
+    // Start wandering after a random delay
+    this.scheduleNextWander();
   }
 
   private createNameTag(): void {
     const agentConfig = AGENTS[this.agentType];
     this.nameTag = this.scene.add.text(
-      this.x + this.width / 2,
-      this.y - 10,
+      this.x,
+      this.y - 14,
       `${agentConfig.emoji} ${agentConfig.name}`,
       {
         fontSize: '8px',
@@ -62,9 +105,9 @@ export class Agent extends Actor {
   }
 
   private listenToEvents(): void {
-    // Listen for movement commands
-    eventsCenter.on(`${this.id}-moveTo`, (x: number, y: number) => {
-      this.moveTo(x, y);
+    // Listen for movement commands (now expects tile coordinates or world coordinates)
+    eventsCenter.on(`${this.id}-moveTo`, (target: { x: number; y: number }) => {
+      this.moveToWorld(target.x, target.y);
     });
 
     // Listen for speak commands
@@ -72,7 +115,7 @@ export class Agent extends Actor {
       this.speak(text);
     });
 
-    // Listen for think commands (smaller bubble)
+    // Listen for think commands
     eventsCenter.on(`${this.id}-think`, (text: string) => {
       this.think(text);
     });
@@ -85,45 +128,23 @@ export class Agent extends Actor {
   }
 
   update(): void {
-    // Handle movement
-    if (this.isMoving) {
-      const dx = this.targetX - this.x;
-      const dy = this.targetY - this.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < 2) {
-        // Arrived at destination
-        this.isMoving = false;
-        this.setVelocity(0, 0);
-        eventsCenter.emit(`${this.id}-arrived`);
-      } else {
-        // Move towards target
-        const vx = (dx / dist) * this.moveSpeed;
-        const vy = (dy / dist) * this.moveSpeed;
-        this.setVelocity(vx, vy);
-
-        // Update direction based on movement
-        if (Math.abs(dx) > Math.abs(dy)) {
-          this.changeDirection(dx > 0 ? DIRECTION.RIGHT : DIRECTION.LEFT);
-        } else {
-          this.changeDirection(dy > 0 ? DIRECTION.DOWN : DIRECTION.UP);
-        }
-      }
-    }
-
-    // Update animation
-    const dirText = this.getDirectionText();
-    this.anims.play(`${this.name}-walk-${dirText}`, true);
+    const townScene = this.scene as TownScene;
     
-    if (this.anims.isPlaying && !this.isMoving) {
-      // Stop on first frame when idle
-      this.anims.setCurrentFrame(this.anims.currentAnim!.frames[0]);
+    // Handle grid-based movement
+    if (this.isMovingToTile) {
+      this.updateMovement();
+    } else if (this.path.length > 0) {
+      // Start moving to next tile in path
+      this.moveToNextTile();
     }
+
+    // Update animation based on movement state
+    this.updateAnimation();
 
     // Update name tag position
     if (this.nameTag) {
-      this.nameTag.setPosition(this.x + this.width / 2, this.y - 10);
-      this.nameTag.setDepth(this.y + this.height * 0.8 + 1);
+      this.nameTag.setPosition(this.x, this.y - 14);
+      this.nameTag.setDepth(this.y + 100);
     }
 
     // Update text box position
@@ -131,7 +152,92 @@ export class Agent extends Actor {
     this.updateThoughtBubble();
 
     // Set depth for proper layering
-    this.depth = this.y + this.height * 0.8;
+    this.depth = this.y + 50;
+  }
+
+  private updateMovement(): void {
+    const dx = this.targetWorldX - this.x;
+    const dy = this.targetWorldY - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 1) {
+      // Arrived at tile center
+      this.x = this.targetWorldX;
+      this.y = this.targetWorldY;
+      this.isMovingToTile = false;
+      
+      // Check if we have more path to follow
+      if (this.path.length === 0) {
+        eventsCenter.emit(`${this.id}-arrived`);
+      }
+    } else {
+      // Move towards target
+      const speed = this.moveSpeed / 60; // Assuming 60fps, adjust as needed
+      const moveX = (dx / dist) * Math.min(speed, dist);
+      const moveY = (dy / dist) * Math.min(speed, dist);
+      this.x += moveX;
+      this.y += moveY;
+
+      // Update direction based on movement
+      if (Math.abs(dx) > Math.abs(dy)) {
+        this.direction = dx > 0 ? DIRECTION.RIGHT : DIRECTION.LEFT;
+      } else {
+        this.direction = dy > 0 ? DIRECTION.DOWN : DIRECTION.UP;
+      }
+    }
+  }
+
+  private moveToNextTile(): void {
+    if (this.path.length === 0) return;
+
+    const townScene = this.scene as TownScene;
+    const nextTile = this.path.shift()!;
+    
+    // Free current tile
+    townScene.freeTile(this.tileX, this.tileY);
+    
+    // Check if next tile is still walkable (another agent might have moved there)
+    if (!townScene.isTileWalkable(nextTile.x, nextTile.y)) {
+      // Recalculate path
+      if (this.path.length > 0) {
+        const finalTarget = this.path[this.path.length - 1];
+        this.path = [];
+        this.moveToTile(finalTarget.x, finalTarget.y);
+      }
+      // Re-occupy current tile since we're not moving
+      townScene.occupyTile(this.tileX, this.tileY);
+      return;
+    }
+    
+    // Update tile position
+    this.tileX = nextTile.x;
+    this.tileY = nextTile.y;
+    
+    // Occupy new tile
+    townScene.occupyTile(this.tileX, this.tileY);
+    
+    // Set target world position
+    const worldPos = townScene.tileToWorld(this.tileX, this.tileY);
+    this.targetWorldX = worldPos.x;
+    this.targetWorldY = worldPos.y;
+    this.isMovingToTile = true;
+  }
+
+  private updateAnimation(): void {
+    const dirText = this.getDirectionText();
+    const animKey = `${this.name}-walk-${dirText}`;
+    
+    if (this.isMovingToTile || this.path.length > 0) {
+      this.anims.play(animKey, true);
+    } else {
+      // Idle - show first frame of walk animation
+      if (this.anims.currentAnim?.key !== animKey) {
+        this.anims.play(animKey, true);
+      }
+      if (this.anims.isPlaying) {
+        this.anims.setCurrentFrame(this.anims.currentAnim!.frames[0]);
+      }
+    }
   }
 
   private getDirectionText(): string {
@@ -150,19 +256,244 @@ export class Agent extends Actor {
     }
   }
 
-  public moveTo(x: number, y: number): void {
-    this.targetX = x;
-    this.targetY = y;
-    this.isMoving = true;
+  // Move to a world position (converts to tile and pathfinds)
+  public moveToWorld(worldX: number, worldY: number): void {
+    const townScene = this.scene as TownScene;
+    const targetTile = townScene.worldToTile(worldX, worldY);
+    this.moveToTile(targetTile.x, targetTile.y);
+  }
+
+  // Move to a specific tile using A* pathfinding
+  public moveToTile(targetTileX: number, targetTileY: number): void {
+    const townScene = this.scene as TownScene;
+    
+    // Don't pathfind if already at destination
+    if (this.tileX === targetTileX && this.tileY === targetTileY) {
+      eventsCenter.emit(`${this.id}-arrived`);
+      return;
+    }
+
+    // Find path using A*
+    this.path = this.findPath(
+      this.tileX, this.tileY,
+      targetTileX, targetTileY,
+      townScene
+    );
+
+    if (this.path.length === 0) {
+      console.log(`${this.id}: No path found to (${targetTileX}, ${targetTileY})`);
+      // Try to find nearest walkable tile
+      const nearestWalkable = this.findNearestWalkable(targetTileX, targetTileY, townScene);
+      if (nearestWalkable) {
+        this.path = this.findPath(
+          this.tileX, this.tileY,
+          nearestWalkable.x, nearestWalkable.y,
+          townScene
+        );
+      }
+    }
+
+    // Remove the starting tile from path (we're already there)
+    if (this.path.length > 0 && this.path[0].x === this.tileX && this.path[0].y === this.tileY) {
+      this.path.shift();
+    }
+  }
+
+  // A* pathfinding implementation
+  private findPath(
+    startX: number, startY: number,
+    endX: number, endY: number,
+    scene: TownScene
+  ): { x: number; y: number }[] {
+    const openSet: PathNode[] = [];
+    const closedSet = new Set<string>();
+    
+    const heuristic = (x: number, y: number) => {
+      return Math.abs(x - endX) + Math.abs(y - endY); // Manhattan distance
+    };
+
+    const startNode: PathNode = {
+      x: startX,
+      y: startY,
+      g: 0,
+      h: heuristic(startX, startY),
+      f: heuristic(startX, startY),
+      parent: null,
+    };
+
+    openSet.push(startNode);
+
+    const directions = [
+      { dx: 0, dy: -1 }, // Up
+      { dx: 0, dy: 1 },  // Down
+      { dx: -1, dy: 0 }, // Left
+      { dx: 1, dy: 0 },  // Right
+    ];
+
+    let iterations = 0;
+    const maxIterations = 1000; // Prevent infinite loops
+
+    while (openSet.length > 0 && iterations < maxIterations) {
+      iterations++;
+      
+      // Find node with lowest f score
+      openSet.sort((a, b) => a.f - b.f);
+      const current = openSet.shift()!;
+      
+      // Check if we reached the goal
+      if (current.x === endX && current.y === endY) {
+        // Reconstruct path
+        const path: { x: number; y: number }[] = [];
+        let node: PathNode | null = current;
+        while (node) {
+          path.unshift({ x: node.x, y: node.y });
+          node = node.parent;
+        }
+        return path;
+      }
+
+      closedSet.add(`${current.x},${current.y}`);
+
+      // Check neighbors
+      for (const dir of directions) {
+        const nx = current.x + dir.dx;
+        const ny = current.y + dir.dy;
+        const key = `${nx},${ny}`;
+
+        if (closedSet.has(key)) continue;
+        
+        // Check if walkable (or is the destination - agents can pathfind TO occupied tiles)
+        const isDestination = nx === endX && ny === endY;
+        if (!scene.isTileWalkable(nx, ny) && !isDestination) continue;
+
+        const g = current.g + 1;
+        const h = heuristic(nx, ny);
+        const f = g + h;
+
+        // Check if already in open set with better score
+        const existingIndex = openSet.findIndex(n => n.x === nx && n.y === ny);
+        if (existingIndex !== -1) {
+          if (openSet[existingIndex].g <= g) continue;
+          openSet.splice(existingIndex, 1);
+        }
+
+        openSet.push({
+          x: nx,
+          y: ny,
+          g,
+          h,
+          f,
+          parent: current,
+        });
+      }
+    }
+
+    // No path found
+    return [];
+  }
+
+  // Find nearest walkable tile to target
+  private findNearestWalkable(
+    targetX: number, targetY: number,
+    scene: TownScene
+  ): { x: number; y: number } | null {
+    const maxRadius = 10;
+    
+    for (let radius = 1; radius <= maxRadius; radius++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+          
+          const nx = targetX + dx;
+          const ny = targetY + dy;
+          
+          if (scene.isTileWalkable(nx, ny)) {
+            return { x: nx, y: ny };
+          }
+        }
+      }
+    }
+    
+    return null;
   }
 
   public stopMoving(): void {
-    this.isMoving = false;
-    this.setVelocity(0, 0);
+    this.path = [];
+    this.isMovingToTile = false;
   }
 
   public getIsMoving(): boolean {
-    return this.isMoving;
+    return this.isMovingToTile || this.path.length > 0;
+  }
+
+  public getTilePosition(): { x: number; y: number } {
+    return { x: this.tileX, y: this.tileY };
+  }
+
+  // ========== Wandering Behavior ==========
+  
+  private scheduleNextWander(): void {
+    if (this.wanderTimer) {
+      this.wanderTimer.destroy();
+    }
+    
+    // Random delay between 2-6 seconds
+    const delay = 2000 + Math.random() * 4000;
+    
+    this.wanderTimer = this.scene.time.delayedCall(delay, () => {
+      if (this.isWandering && !this.isBusy && !this.getIsMoving()) {
+        this.wanderToRandomTile();
+      }
+      // Schedule next wander
+      this.scheduleNextWander();
+    });
+  }
+
+  private wanderToRandomTile(): void {
+    const townScene = this.scene as TownScene;
+    
+    // Pick a random tile within wander radius of home
+    const attempts = 10;
+    for (let i = 0; i < attempts; i++) {
+      const offsetX = Math.floor(Math.random() * (this.wanderRadius * 2 + 1)) - this.wanderRadius;
+      const offsetY = Math.floor(Math.random() * (this.wanderRadius * 2 + 1)) - this.wanderRadius;
+      
+      const targetX = this.homeTileX + offsetX;
+      const targetY = this.homeTileY + offsetY;
+      
+      // Check if tile is walkable and not current position
+      if (townScene.isTileWalkable(targetX, targetY) && 
+          (targetX !== this.tileX || targetY !== this.tileY)) {
+        this.moveToTile(targetX, targetY);
+        return;
+      }
+    }
+    // Couldn't find a valid tile, will try again next cycle
+  }
+
+  // Called when agent is needed for a task
+  public summon(): void {
+    this.isBusy = true;
+    this.isWandering = false;
+    this.stopMoving();
+  }
+
+  // Called when agent is done with task
+  public release(): void {
+    this.isBusy = false;
+    // Return home first, then resume wandering
+    this.moveToTile(this.homeTileX, this.homeTileY);
+    
+    // Resume wandering after returning home
+    this.scene.time.delayedCall(3000, () => {
+      this.isWandering = true;
+    });
+  }
+
+  // Update home position (for when agent moves to new area)
+  public setHomePosition(tileX: number, tileY: number): void {
+    this.homeTileX = tileX;
+    this.homeTileY = tileY;
   }
 
   public speak(text: string): void {
@@ -175,8 +506,8 @@ export class Agent extends Actor {
 
     this.textBox = rexUI.add
       .label({
-        x: this.x + this.width / 2,
-        y: this.y - this.height * 0.3,
+        x: this.x,
+        y: this.y - 20,
         width: 120,
         orientation: 'x',
         background: rexUI.add.roundRectangle(
@@ -212,8 +543,8 @@ export class Agent extends Actor {
 
     this.thoughtBubble = rexUI.add
       .label({
-        x: this.x + this.width / 2,
-        y: this.y - this.height * 0.2,
+        x: this.x,
+        y: this.y - 16,
         width: 80,
         background: rexUI.add.roundRectangle(
           0, 0, 2, 2, 8,
@@ -238,16 +569,14 @@ export class Agent extends Actor {
 
   private updateTextBox(): void {
     if (!this.textBox) return;
-    const scale = this.scene.cameras.main.zoom;
-    this.textBox.setPosition(this.x + this.width / 2, this.y - this.height * 0.3);
-    this.textBox.setDepth(this.y + this.height * 0.8 + 2);
+    this.textBox.setPosition(this.x, this.y - 20);
+    this.textBox.setDepth(this.y + 200);
   }
 
   private updateThoughtBubble(): void {
     if (!this.thoughtBubble) return;
-    const scale = this.scene.cameras.main.zoom;
-    this.thoughtBubble.setPosition(this.x + this.width / 2, this.y - this.height * 0.2);
-    this.thoughtBubble.setDepth(this.y + this.height * 0.8 + 2);
+    this.thoughtBubble.setPosition(this.x, this.y - 16);
+    this.thoughtBubble.setDepth(this.y + 200);
   }
 
   public destroyTextBox(): void {
@@ -270,6 +599,18 @@ export class Agent extends Actor {
   }
 
   destroy(fromScene?: boolean): void {
+    // Free the tile we're occupying (only if scene has freeTile method)
+    const townScene = this.scene as TownScene;
+    if (townScene && typeof townScene.freeTile === 'function') {
+      townScene.freeTile(this.tileX, this.tileY);
+    }
+    
+    // Stop wandering timer
+    if (this.wanderTimer) {
+      this.wanderTimer.destroy();
+      this.wanderTimer = null;
+    }
+    
     this.destroyTextBox();
     this.destroyThoughtBubble();
     if (this.nameTag) {

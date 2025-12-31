@@ -1,9 +1,11 @@
 import { Scene, Tilemaps, GameObjects, Physics, Math as PhaserMath } from 'phaser';
 import { Agent } from '../classes/Agent';
 import eventsCenter from '../classes/EventCenter';
-import { AGENTS, MEETING_POINT, COLOR_PRIMARY, COLOR_LIGHT, COLOR_DARK, API_BASE_URL } from '../constants';
+import { AGENTS, AGENT_COLORS, MEETING_POINT, COLOR_PRIMARY, COLOR_LIGHT, COLOR_DARK, API_BASE_URL } from '../constants';
 import { DIRECTION, routeQuery } from '../utils';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
+import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
+import type { Board, QuadGrid } from 'phaser3-rex-plugins/plugins/board-components';
 
 interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -23,10 +25,46 @@ export class TownScene extends Scene {
   private agentGroup!: GameObjects.Group;
   
   public rexUI!: UIPlugin;
+  public rexBoard!: BoardPlugin;
+  public board!: Board;
+  
+  // Track which tiles are blocked (walls, trees, houses, agents)
+  private blockedTiles: Set<string> = new Set();
   
   private inputBox: any = null;
   private conversationHistory: ConversationMessage[] = [];
   private isProcessing: boolean = false;
+  
+  // Edge panning settings
+  private edgePanSpeed: number = 300;
+  private edgeThreshold: number = 50;
+
+  // Building zones for door detection (pixel coordinates)
+  // Based on visible buildings in the tilemap - doors are at bottom of each building
+  private buildingZones: {
+    name: string;
+    agentType: string;
+    doorX: number;
+    doorY: number;
+    doorWidth: number;
+    doorHeight: number;
+  }[] = [
+    // Top row houses (row 5-8, y ~80-128 pixels)
+    // Left house - door at tile (10,8) = pixel (160, 128)
+    { name: "Scout's Lab", agentType: 'scout', doorX: 168, doorY: 128, doorWidth: 32, doorHeight: 16 },
+    // Middle-left house - door at tile (17,8) = pixel (272, 128)  
+    { name: "Sage's Study", agentType: 'sage', doorX: 272, doorY: 128, doorWidth: 32, doorHeight: 16 },
+    // Right house - door at tile (31,8) = pixel (496, 128)
+    { name: "Chronicle's Office", agentType: 'chronicle', doorX: 496, doorY: 128, doorWidth: 32, doorHeight: 16 },
+    
+    // Middle row - large building (row 11-14)  
+    // Center building door at tile (17,14) = pixel (272, 224)
+    { name: "Trends' Hub", agentType: 'trends', doorX: 272, doorY: 224, doorWidth: 32, doorHeight: 16 },
+    
+    // Pokemon Center (right side) - door at approximately (41, 7) = pixel (656, 112)
+    // Actually visible at around x:624, y:128 based on screenshot
+    { name: "Maven's Center", agentType: 'maven', doorX: 640, doorY: 128, doorWidth: 32, doorHeight: 16 },
+  ];
 
   constructor() {
     super('town-scene');
@@ -34,19 +72,68 @@ export class TownScene extends Scene {
 
   create(): void {
     this.initMap();
+    this.initBoard();
     this.initAgents();
     this.initCamera();
     this.initUI();
     
     // Listen for global events
     this.setupEventListeners();
+    
+    // Hide any transition overlay (in case we came from another scene)
+    setTimeout(() => {
+      if ((window as any).hideTransition) {
+        (window as any).hideTransition();
+      }
+    }, 500);
   }
 
-  update(): void {
+  update(time: number, delta: number): void {
     // Update all agents
     this.agents.forEach((agent) => {
       agent.update();
     });
+    
+    // Edge panning - move camera when mouse is near screen edges
+    this.handleEdgePanning(delta);
+  }
+  
+  private handleEdgePanning(delta: number): void {
+    // Don't pan if dialog is open
+    if (this.inputBox) return;
+    
+    const pointer = this.input.activePointer;
+    const cam = this.cameras.main;
+    
+    // Get screen dimensions
+    const screenWidth = this.game.scale.width;
+    const screenHeight = this.game.scale.height;
+    
+    // Calculate pan speed based on delta time
+    const panAmount = (this.edgePanSpeed * delta) / 1000;
+    
+    let panX = 0;
+    let panY = 0;
+    
+    // Check horizontal edges
+    if (pointer.x < this.edgeThreshold) {
+      panX = -panAmount;
+    } else if (pointer.x > screenWidth - this.edgeThreshold) {
+      panX = panAmount;
+    }
+    
+    // Check vertical edges
+    if (pointer.y < this.edgeThreshold) {
+      panY = -panAmount;
+    } else if (pointer.y > screenHeight - this.edgeThreshold) {
+      panY = panAmount;
+    }
+    
+    // Apply panning (camera bounds will automatically clamp)
+    if (panX !== 0 || panY !== 0) {
+      cam.scrollX += panX;
+      cam.scrollY += panY;
+    }
   }
 
   private initMap(): void {
@@ -81,6 +168,109 @@ export class TownScene extends Scene {
     this.wallLayer.setCollisionByProperty({ collides: true });
   }
 
+  private initBoard(): void {
+    const tileWidth = 16;
+    const tileHeight = 16;
+    const gridWidth = this.map.width;
+    const gridHeight = this.map.height;
+
+    // Create the board for pathfinding
+    this.board = this.rexBoard.add.board({
+      grid: {
+        gridType: 'quadGrid',
+        x: tileWidth / 2, // Center of first tile
+        y: tileHeight / 2,
+        cellWidth: tileWidth,
+        cellHeight: tileHeight,
+        type: 'orthogonal', // 4-direction movement
+      },
+      width: gridWidth,
+      height: gridHeight,
+    });
+
+    // Build blocked tiles set from collision layers
+    this.buildBlockedTiles();
+
+    console.log(`Board created: ${gridWidth}x${gridHeight} tiles, ${this.blockedTiles.size} blocked`);
+  }
+
+  private buildBlockedTiles(): void {
+    this.blockedTiles.clear();
+
+    // Helper to add blocked tiles from a layer
+    const addBlockedFromLayer = (layer: Tilemaps.TilemapLayer | null) => {
+      if (!layer) return;
+      
+      layer.forEachTile((tile) => {
+        if (tile && tile.index !== -1) {
+          // Check if tile has collides property or is non-empty
+          const props = tile.properties as { collides?: boolean };
+          if (props?.collides || tile.collides) {
+            this.blockedTiles.add(`${tile.x},${tile.y}`);
+          }
+        }
+      });
+    };
+
+    // Add walls (always blocking)
+    if (this.wallLayer) {
+      this.wallLayer.forEachTile((tile) => {
+        if (tile && tile.index !== -1) {
+          this.blockedTiles.add(`${tile.x},${tile.y}`);
+        }
+      });
+    }
+
+    // Add other collision layers
+    addBlockedFromLayer(this.treeLayer);
+    addBlockedFromLayer(this.houseLayer);
+  }
+
+  // Helper to check if a tile is walkable
+  public isTileWalkable(tileX: number, tileY: number): boolean {
+    // Out of bounds check
+    if (tileX < 0 || tileY < 0 || tileX >= this.map.width || tileY >= this.map.height) {
+      return false;
+    }
+    // Check blocked tiles
+    return !this.blockedTiles.has(`${tileX},${tileY}`);
+  }
+
+  // Convert world coordinates to tile coordinates
+  public worldToTile(worldX: number, worldY: number): { x: number; y: number } {
+    return {
+      x: Math.floor(worldX / 16),
+      y: Math.floor(worldY / 16),
+    };
+  }
+
+  // Convert tile coordinates to world coordinates (center of tile)
+  public tileToWorld(tileX: number, tileY: number): { x: number; y: number } {
+    return {
+      x: tileX * 16 + 8,
+      y: tileY * 16 + 8,
+    };
+  }
+
+  // Mark a tile as occupied by an agent
+  public occupyTile(tileX: number, tileY: number): void {
+    this.blockedTiles.add(`${tileX},${tileY}`);
+  }
+
+  // Unmark a tile
+  public freeTile(tileX: number, tileY: number): void {
+    // Only free if it's not a permanent obstacle
+    const key = `${tileX},${tileY}`;
+    // Re-check if it's a wall/tree/house before freeing
+    const wallTile = this.wallLayer?.getTileAt(tileX, tileY);
+    const treeTile = this.treeLayer?.getTileAt(tileX, tileY);
+    const houseTile = this.houseLayer?.getTileAt(tileX, tileY);
+    
+    if (!wallTile && !treeTile && !houseTile) {
+      this.blockedTiles.delete(key);
+    }
+  }
+
   private initAgents(): void {
     this.agentGroup = this.add.group();
 
@@ -111,164 +301,153 @@ export class TownScene extends Scene {
     // Agent-to-agent collision
     this.physics.add.collider(this.agentGroup, this.agentGroup);
 
-    // Set world bounds
-    this.physics.world.setBounds(0, 0, this.groundLayer.width, this.groundLayer.height);
+    // Set world bounds using tilemap pixel dimensions
+    this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
   }
 
   private initCamera(): void {
+    // Use the tilemap's pixel dimensions for bounds
+    const mapWidth = this.map.widthInPixels;
+    const mapHeight = this.map.heightInPixels;
+
+    console.log('Map dimensions:', mapWidth, 'x', mapHeight);
+
     this.cameras.main.setSize(this.game.scale.width, this.game.scale.height);
-    this.cameras.main.setBounds(0, 0, this.groundLayer.width, this.groundLayer.height);
-    
+    this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
+
     // Start centered on meeting point
     this.cameras.main.centerOn(MEETING_POINT.x, MEETING_POINT.y);
-    this.cameras.main.setZoom(3);
+    this.cameras.main.setZoom(2);
+
+    // Set default cursor
+    this.input.manager.canvas.style.cursor = 'default';
   }
 
   private initUI(): void {
-    // Create input prompt at bottom of screen
-    this.createInputPrompt();
+    // Set up the HTML chat panel
+    this.setupChatPanel();
   }
 
-  private createInputPrompt(): void {
-    const screenWidth = this.cameras.main.width;
-    const screenHeight = this.cameras.main.height;
+  private setupChatPanel(): void {
+    const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+    const chatSend = document.getElementById('chat-send') as HTMLButtonElement;
     
-    // Create a fixed UI container
-    const inputY = screenHeight - 60;
-    
-    // Background for input area
-    const bg = this.add.rectangle(
-      screenWidth / 2,
-      inputY,
-      screenWidth - 40,
-      80,
-      0x000000,
-      0.7
-    ).setScrollFactor(0).setDepth(1000);
+    if (!chatInput || !chatSend) {
+      console.error('Chat panel elements not found');
+      return;
+    }
 
-    // Instructions text
-    const instructions = this.add.text(
-      screenWidth / 2,
-      inputY - 20,
-      'Press ENTER to ask the agents a question',
-      {
-        fontSize: '14px',
-        color: '#ffffff',
-      }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
+    // Handle send button click
+    chatSend.onclick = () => {
+      this.handleChatSubmit(chatInput);
+    };
 
-    // Status text
-    const status = this.add.text(
-      screenWidth / 2,
-      inputY + 10,
-      'Agents are idle - waiting for your question!',
-      {
-        fontSize: '12px',
-        color: '#888888',
+    // Handle Enter key
+    chatInput.onkeydown = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.handleChatSubmit(chatInput);
       }
-    ).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
-
-    // Listen for Enter key
-    this.input.keyboard?.on('keydown-ENTER', () => {
-      if (!this.isProcessing && !this.inputBox) {
-        this.showInputDialog();
-      }
-    });
+    };
   }
 
-  private showInputDialog(): void {
-    const screenWidth = this.cameras.main.width;
-    const screenHeight = this.cameras.main.height;
+  private handleChatSubmit(chatInput: HTMLInputElement): void {
+    const query = chatInput.value.trim();
+    if (!query || this.isProcessing) return;
 
-    // Create modal overlay
-    const overlay = this.add.rectangle(
-      screenWidth / 2,
-      screenHeight / 2,
-      screenWidth,
-      screenHeight,
-      0x000000,
-      0.5
-    ).setScrollFactor(0).setDepth(2000).setInteractive();
-
-    // Create input box using rex UI
-    const scale = 1;
+    // Clear input
+    chatInput.value = '';
     
-    this.inputBox = this.rexUI.add.dialog({
-      x: screenWidth / 2,
-      y: screenHeight / 2,
-      background: this.rexUI.add.roundRectangle(0, 0, 100, 100, 20, COLOR_PRIMARY),
-      title: this.add.text(0, 0, 'Ask the Agents', {
-        fontSize: '18px',
-        color: '#ffffff',
-      }),
-      content: this.rexUI.add.inputText({
-        width: 400,
-        height: 100,
-        type: 'textarea',
-        text: '',
-        placeholder: 'Type your question here...',
-        color: '#ffffff',
-        backgroundColor: '#' + COLOR_DARK.toString(16),
-        border: 2,
-        borderColor: '#' + COLOR_LIGHT.toString(16),
-      }),
-      actions: [
-        this.createButton('Submit'),
-        this.createButton('Cancel'),
-      ],
-      space: {
-        title: 20,
-        content: 20,
-        action: 15,
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: 20,
-      },
-      align: {
-        actions: 'center',
-      },
-    })
-    .setScrollFactor(0)
-    .setDepth(2001)
-    .layout()
-    .popUp(300);
-
-    // Handle button clicks
-    this.inputBox.on('button.click', (button: any, _groupName: string, index: number) => {
-      if (index === 0) {
-        // Submit
-        const inputText = this.inputBox.getElement('content') as any;
-        const query = inputText.text;
-        if (query.trim()) {
-          this.processQuery(query.trim());
-        }
-      }
-      // Close dialog
-      this.inputBox.scaleDownDestroy(300);
-      this.inputBox = null;
-      overlay.destroy();
-    });
+    // Add user message to chat
+    this.addChatMessage('user', query);
+    
+    // Process the query
+    this.processQuery(query);
   }
 
-  private createButton(text: string): any {
-    return this.rexUI.add.label({
-      background: this.rexUI.add.roundRectangle(0, 0, 0, 0, 10, COLOR_LIGHT),
-      text: this.add.text(0, 0, text, {
-        fontSize: '14px',
-        color: '#ffffff',
-      }),
-      space: {
-        left: 15,
-        right: 15,
-        top: 10,
-        bottom: 10,
-      },
-    });
+  private addChatMessage(type: 'user' | 'agent', content: string, agentType?: string): void {
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return;
+
+    // Remove welcome message if present
+    const welcome = chatMessages.querySelector('.welcome-message');
+    if (welcome) welcome.remove();
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${type}`;
+
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (type === 'user') {
+      messageDiv.innerHTML = `
+        <div class="bubble">
+          <p>${this.escapeHtml(content)}</p>
+        </div>
+        <div class="timestamp">${timestamp}</div>
+      `;
+    } else {
+      const agentConfig = agentType ? AGENTS[agentType as keyof typeof AGENTS] : null;
+      const agentName = agentConfig ? `${agentConfig.emoji} ${agentConfig.name}` : 'Agent';
+      messageDiv.innerHTML = `
+        <div class="agent-name">${agentName}</div>
+        <div class="bubble">
+          <p>${this.escapeHtml(content)}</p>
+        </div>
+        <div class="timestamp">${timestamp}</div>
+      `;
+    }
+
+    chatMessages.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  private showTypingIndicator(): HTMLElement | null {
+    const chatMessages = document.getElementById('chat-messages');
+    if (!chatMessages) return null;
+
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-message agent';
+    typingDiv.id = 'typing-indicator';
+    typingDiv.innerHTML = `
+      <div class="typing-indicator">
+        <span></span><span></span><span></span>
+      </div>
+    `;
+    chatMessages.appendChild(typingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    return typingDiv;
+  }
+
+  private removeTypingIndicator(): void {
+    const typing = document.getElementById('typing-indicator');
+    if (typing) typing.remove();
+  }
+
+  private updateChatStatus(status: string): void {
+    const statusEl = document.getElementById('chat-status');
+    if (statusEl) statusEl.textContent = status;
+  }
+
+  private setChatInputEnabled(enabled: boolean): void {
+    const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+    const chatSend = document.getElementById('chat-send') as HTMLButtonElement;
+    if (chatInput) chatInput.disabled = !enabled;
+    if (chatSend) chatSend.disabled = !enabled;
+  }
+
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   private async processQuery(query: string): Promise<void> {
     this.isProcessing = true;
+    this.setChatInputEnabled(false);
     
     // Add to conversation history
     this.conversationHistory.push({ role: 'user', content: query });
@@ -276,6 +455,10 @@ export class TownScene extends Scene {
     // Route the query to determine which agents should respond
     const relevantAgents = routeQuery(query);
     console.log('Routing to agents:', relevantAgents);
+    
+    const mainAgentType = relevantAgents[0];
+    const mainAgentConfig = AGENTS[mainAgentType as keyof typeof AGENTS];
+    this.updateChatStatus(`${mainAgentConfig?.emoji || ''} ${mainAgentConfig?.name || 'Agent'} is thinking...`);
 
     // Phase 1: Agents think about the query (show thought bubbles)
     relevantAgents.forEach((agentType) => {
@@ -288,47 +471,72 @@ export class TownScene extends Scene {
     // Phase 2: Move relevant agents to meeting point
     await this.moveAgentsToMeeting(relevantAgents);
 
-    // Phase 3: Agents discuss (show speech bubbles while waiting for API)
-    relevantAgents.forEach((agentType, index) => {
-      const agent = this.agents.get(agentType);
-      if (agent) {
-        this.time.delayedCall(index * 500, () => {
-          agent.speak(`Let me help with that...`);
-        });
-      }
-    });
+    // Phase 3: Show typing indicator in chat
+    this.showTypingIndicator();
+    this.updateChatStatus(`${mainAgentConfig?.emoji || ''} ${mainAgentConfig?.name || 'Agent'} is typing...`);
 
     // Phase 4: Call the API
     try {
-      const response = await this.callAgentAPI(query, relevantAgents[0]);
+      const result = await this.callAgentAPI(query, mainAgentType);
       
-      // Phase 5: Show the response
-      const mainAgent = this.agents.get(relevantAgents[0]);
-      if (mainAgent && response) {
-        mainAgent.speak(this.truncateText(response, 100));
+      // Remove typing indicator
+      this.removeTypingIndicator();
+      
+      // Phase 5: Show handoffs if multiple agents collaborated
+      if (result.handoffs && result.handoffs.length > 1) {
+        const handoffNames = result.handoffs.map(h => {
+          const config = AGENTS[h as keyof typeof AGENTS];
+          return config ? `${config.emoji} ${config.name}` : h;
+        }).join(' → ');
+        this.updateChatStatus(`Collaborated: ${handoffNames}`);
         
-        // Show full response in a dialog
-        this.showResponseDialog(relevantAgents[0], response);
+        // Show collaboration in game - each agent in handoff chain speaks briefly
+        result.handoffs.forEach((agentType, index) => {
+          const agent = this.agents.get(agentType);
+          if (agent && index < result.handoffs.length - 1) {
+            this.time.delayedCall(index * 800, () => {
+              agent.think('Passing to next...');
+            });
+          }
+        });
+      }
+      
+      // Phase 6: Show the response in chat and game
+      const respondingAgent = this.agents.get(result.agent);
+      if (respondingAgent && result.response) {
+        // Show truncated version in game bubble
+        respondingAgent.speak(this.truncateText(result.response, 80));
+        
+        // Show full response in chat panel
+        this.addChatMessage('agent', result.response, result.agent);
       }
 
       this.conversationHistory.push({
         role: 'assistant',
-        content: response || 'No response',
-        agent: relevantAgents[0],
+        content: result.response || 'No response',
+        agent: result.agent,
       });
 
     } catch (error) {
       console.error('API Error:', error);
-      const mainAgent = this.agents.get(relevantAgents[0]);
+      this.removeTypingIndicator();
+      
+      const errorMessage = 'Sorry, I encountered an error processing your request.';
+      this.addChatMessage('agent', errorMessage, mainAgentType);
+      
+      const mainAgent = this.agents.get(mainAgentType);
       if (mainAgent) {
-        mainAgent.speak('Sorry, I encountered an error!');
+        mainAgent.speak('Oops, something went wrong!');
       }
     }
 
     // Phase 6: Return agents to original positions after delay
-    this.time.delayedCall(10000, () => {
+    this.updateChatStatus('Ready');
+    this.setChatInputEnabled(true);
+    this.isProcessing = false;
+    
+    this.time.delayedCall(8000, () => {
       this.returnAgentsToPositions();
-      this.isProcessing = false;
     });
   }
 
@@ -363,7 +571,7 @@ export class TownScene extends Scene {
           eventsCenter.on(`${agentType}-arrived`, arrivalHandler);
 
           // Start movement
-          eventsCenter.emit(`${agentType}-moveTo`, targetX, targetY);
+          eventsCenter.emit(`${agentType}-moveTo`, { x: targetX, y: targetY });
         }
       });
 
@@ -386,21 +594,25 @@ export class TownScene extends Scene {
     this.agents.forEach((agent, agentType) => {
       const pos = originalPositions[agentType];
       if (pos) {
-        eventsCenter.emit(`${agentType}-moveTo`, pos.x, pos.y);
+        eventsCenter.emit(`${agentType}-moveTo`, { x: pos.x, y: pos.y });
       }
     });
   }
 
-  private async callAgentAPI(query: string, agentType: string): Promise<string> {
+  private async callAgentAPI(query: string, agentType: string): Promise<{
+    response: string;
+    agent: string;
+    handoffs: string[];
+  }> {
     try {
-      // Try the AI SDK endpoint from arena
-      const response = await fetch(`${API_BASE_URL}/api/aisdk`, {
+      // Use the new /chat endpoint with Strands Agents
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
           agent: agentType,
-          history: this.conversationHistory.slice(-10),
+          use_swarm: false, // Single agent for now, can enable swarm later
         }),
       });
 
@@ -409,56 +621,20 @@ export class TownScene extends Scene {
       }
 
       const data = await response.json();
-      return data.response || data.text || 'No response received';
+      return {
+        response: data.response || 'No response received',
+        agent: data.agent || agentType,
+        handoffs: data.handoffs || [agentType],
+      };
     } catch (error) {
       console.error('API call failed:', error);
       // Return a mock response for demo purposes
-      return `[${AGENTS[agentType as keyof typeof AGENTS]?.name || agentType}] I'm ready to help! However, the backend server isn't running. Start it with: cd prototypes/arena && npm run server`;
+      return {
+        response: `[${AGENTS[agentType as keyof typeof AGENTS]?.name || agentType}] I'm ready to help! However, the backend server isn't running. Start it with: cd backend && source venv/bin/activate && python server.py`,
+        agent: agentType,
+        handoffs: [agentType],
+      };
     }
-  }
-
-  private showResponseDialog(agentType: string, response: string): void {
-    const screenWidth = this.cameras.main.width;
-    const screenHeight = this.cameras.main.height;
-    const agentConfig = AGENTS[agentType as keyof typeof AGENTS];
-
-    const dialog = this.rexUI.add.dialog({
-      x: screenWidth / 2,
-      y: screenHeight / 2,
-      background: this.rexUI.add.roundRectangle(0, 0, 100, 100, 20, COLOR_PRIMARY),
-      title: this.add.text(0, 0, `${agentConfig?.emoji || ''} ${agentConfig?.name || agentType}`, {
-        fontSize: '16px',
-        color: '#ffffff',
-      }),
-      content: this.rexUI.add.textArea({
-        width: 450,
-        height: 250,
-        text: response,
-        style: {
-          fontSize: '12px',
-          color: '#ffffff',
-          wordWrap: { width: 430 },
-        },
-      }),
-      actions: [this.createButton('Close')],
-      space: {
-        title: 15,
-        content: 15,
-        action: 15,
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: 20,
-      },
-    })
-    .setScrollFactor(0)
-    .setDepth(2001)
-    .layout()
-    .popUp(300);
-
-    dialog.on('button.click', () => {
-      dialog.scaleDownDestroy(300);
-    });
   }
 
   private truncateText(text: string, maxLength: number): string {
@@ -467,6 +643,169 @@ export class TownScene extends Scene {
   }
 
   private setupEventListeners(): void {
-    // Global event handlers can be set up here
+    // Create interactive zones for building doors
+    this.createDoorZones();
+    
+    // Listen for pointer events on the scene
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Convert screen coordinates to world coordinates
+      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      
+      console.log(`Click at screen (${pointer.x}, ${pointer.y}) -> world (${worldPoint.x.toFixed(0)}, ${worldPoint.y.toFixed(0)})`);
+      
+      // Check if click is on any building door
+      const clickedZone = this.buildingZones.find((zone) => {
+        const inZone = (
+          worldPoint.x >= zone.doorX &&
+          worldPoint.x <= zone.doorX + zone.doorWidth &&
+          worldPoint.y >= zone.doorY &&
+          worldPoint.y <= zone.doorY + zone.doorHeight
+        );
+        if (inZone) {
+          console.log(`Matched zone: ${zone.name}`);
+        }
+        return inZone;
+      });
+      
+      if (clickedZone) {
+        console.log(`Entering building: ${clickedZone.name}`);
+        this.enterBuilding(clickedZone);
+      }
+    });
+  }
+
+  // Visual door zone indicators (invisible by default, highlight on hover)
+  private doorGraphics: Phaser.GameObjects.Graphics | null = null;
+  private hoveredZone: typeof this.buildingZones[0] | null = null;
+
+  private createDoorZones(): void {
+    // Create graphics for door highlighting
+    this.doorGraphics = this.add.graphics();
+    this.doorGraphics.setDepth(100);
+    
+    // Track mouse movement for hover effects
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      
+      // Find if hovering over any door
+      const hoverZone = this.buildingZones.find((zone) => {
+        return (
+          worldPoint.x >= zone.doorX - 4 &&
+          worldPoint.x <= zone.doorX + zone.doorWidth + 4 &&
+          worldPoint.y >= zone.doorY - 4 &&
+          worldPoint.y <= zone.doorY + zone.doorHeight + 4
+        );
+      });
+      
+      if (hoverZone !== this.hoveredZone) {
+        this.hoveredZone = hoverZone || null;
+        this.updateDoorHighlight();
+        
+        // Change cursor
+        if (hoverZone) {
+          this.input.manager.canvas.style.cursor = 'pointer';
+        } else {
+          this.input.manager.canvas.style.cursor = 'default';
+        }
+      }
+    });
+  }
+
+  private updateDoorHighlight(): void {
+    if (!this.doorGraphics) return;
+    
+    this.doorGraphics.clear();
+    
+    if (this.hoveredZone) {
+      const zone = this.hoveredZone;
+      const agentConfig = AGENTS[zone.agentType as keyof typeof AGENTS];
+      const color = AGENT_COLORS[zone.agentType as keyof typeof AGENT_COLORS] || 0xffffff;
+      
+      // Draw highlight rectangle around door
+      this.doorGraphics.lineStyle(2, color, 1);
+      this.doorGraphics.strokeRect(
+        zone.doorX - 2,
+        zone.doorY - 2,
+        zone.doorWidth + 4,
+        zone.doorHeight + 4
+      );
+      
+      // Draw pulsing effect (simple glow)
+      this.doorGraphics.lineStyle(1, color, 0.5);
+      this.doorGraphics.strokeRect(
+        zone.doorX - 4,
+        zone.doorY - 4,
+        zone.doorWidth + 8,
+        zone.doorHeight + 8
+      );
+      
+      // Show building name tooltip above the door
+      this.showDoorTooltip(zone);
+    } else {
+      this.hideDoorTooltip();
+    }
+  }
+
+  private doorTooltip: Phaser.GameObjects.Container | null = null;
+
+  private showDoorTooltip(zone: typeof this.buildingZones[0]): void {
+    this.hideDoorTooltip();
+    
+    const agentConfig = AGENTS[zone.agentType as keyof typeof AGENTS];
+    
+    // Create tooltip container
+    this.doorTooltip = this.add.container(
+      zone.doorX + zone.doorWidth / 2,
+      zone.doorY - 20
+    );
+    this.doorTooltip.setDepth(200);
+    
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.85);
+    bg.fillRoundedRect(-50, -10, 100, 20, 4);
+    
+    // Text
+    const text = this.add.text(0, 0, `${agentConfig.emoji} ${zone.name}`, {
+      fontSize: '8px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    this.doorTooltip.add([bg, text]);
+  }
+
+  private hideDoorTooltip(): void {
+    if (this.doorTooltip) {
+      this.doorTooltip.destroy();
+      this.doorTooltip = null;
+    }
+  }
+
+  private enterBuilding(zone: typeof this.buildingZones[0]): void {
+    const agentConfig = AGENTS[zone.agentType as keyof typeof AGENTS];
+    
+    // Disable further input while transitioning
+    this.input.enabled = false;
+    
+    // Show retro transition
+    if ((window as any).showTransition) {
+      (window as any).showTransition(
+        `/assets/sprites/${agentConfig.sprite}.png`,
+        `Entering ${zone.name}...`,
+        () => {
+          // Start the room scene with the agent type
+          this.scene.start('room-scene', {
+            agentType: zone.agentType,
+            fromTown: true,
+          });
+        }
+      );
+    } else {
+      // Fallback without transition
+      this.scene.start('room-scene', {
+        agentType: zone.agentType,
+        fromTown: true,
+      });
+    }
   }
 }

@@ -40,23 +40,42 @@ export class LoadingScene extends Scene {
       percentText.destroy();
     });
 
-    // Load tilemap
+    // Load tilemaps
     this.load.tilemapTiledJSON('town', 'assets/tilemaps/json/town.json');
     this.load.image('tiles', 'assets/tilemaps/tiles/tileset.png');
+    
+    // Load room tilemaps for each agent
+    this.load.tilemapTiledJSON('room-scout', 'assets/tilemaps/json/room-scout.json');
+    this.load.tilemapTiledJSON('room-sage', 'assets/tilemaps/json/room-sage.json');
+    this.load.tilemapTiledJSON('room-chronicle', 'assets/tilemaps/json/room-chronicle.json');
+    this.load.tilemapTiledJSON('room-trends', 'assets/tilemaps/json/room-trends.json');
+    this.load.tilemapTiledJSON('room-maven', 'assets/tilemaps/json/room-maven.json');
 
     // Load all agent sprites (Pokemon-style characters)
-    // Each sprite sheet is 14x20 pixels per frame, 12 frames (4 directions x 3 frames each)
+    // Sprites are horizontal strips with 12 frames (4 directions x 3 frames each)
+    // Frame order: Down (0-2), Left (3-5), Right (6-8), Up (9-11)
+    const spriteSizes: Record<string, { width: number; height: number }> = {
+      archie: { width: 16, height: 20 },   // 192x20 / 12 = 16x20
+      birch: { width: 16, height: 20 },    // 192x20 / 12 = 16x20
+      maxie: { width: 16, height: 20 },    // 192x20 / 12 = 16x20
+      steven: { width: 16, height: 21 },   // 192x21 / 12 = 16x21
+      may: { width: 14, height: 20 },      // 168x20 / 12 = 14x20
+      brendan: { width: 14, height: 21 },  // 168x21 / 12 = 14x21
+      joseph: { width: 14, height: 21 },   // 168x21 / 12 = 14x21
+    };
+
     Object.values(AGENTS).forEach((agent) => {
+      const size = spriteSizes[agent.sprite] || { width: 16, height: 20 };
       this.load.spritesheet(agent.sprite, `assets/sprites/${agent.sprite}.png`, {
-        frameWidth: 14,
-        frameHeight: 20,
+        frameWidth: size.width,
+        frameHeight: size.height,
       });
     });
 
     // Load player sprite (brendan)
     this.load.spritesheet('player', 'assets/sprites/brendan.png', {
       frameWidth: 14,
-      frameHeight: 20,
+      frameHeight: 21,
     });
   }
 

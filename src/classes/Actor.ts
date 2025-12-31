@@ -19,44 +19,54 @@ export class Actor extends Physics.Arcade.Sprite {
   }
 
   initAnimations(): void {
-    // Walk down (frames 0-2)
+    // Sprite sheet layout (12 frames in horizontal strip):
+    // Frames 0-2: DOWN (front facing)
+    // Frames 3-5: UP (back facing)
+    // Frames 6-8: LEFT (side)
+    // Frames 9-11: RIGHT (side)
+    
+    // Walk down - character faces down/toward camera (frames 0-2)
     this.scene.anims.create({
       key: this.name + '-walk-down',
       frames: this.scene.anims.generateFrameNumbers(this.texture.key, {
         start: 0,
         end: 2,
       }),
-      frameRate: 6,
+      frameRate: 8,
+      repeat: -1,
     });
 
-    // Walk up (frames 3-5)
+    // Walk up - character faces up/away from camera (frames 3-5)
     this.scene.anims.create({
       key: this.name + '-walk-up',
       frames: this.scene.anims.generateFrameNumbers(this.texture.key, {
         start: 3,
         end: 5,
       }),
-      frameRate: 6,
+      frameRate: 8,
+      repeat: -1,
     });
 
-    // Walk left (frames 6-8)
+    // Walk left - character faces left (frames 6-8)
     this.scene.anims.create({
       key: this.name + '-walk-left',
       frames: this.scene.anims.generateFrameNumbers(this.texture.key, {
         start: 6,
         end: 8,
       }),
-      frameRate: 6,
+      frameRate: 8,
+      repeat: -1,
     });
 
-    // Walk right (frames 9-11)
+    // Walk right - character faces right (frames 9-11)
     this.scene.anims.create({
       key: this.name + '-walk-right',
       frames: this.scene.anims.generateFrameNumbers(this.texture.key, {
         start: 9,
         end: 11,
       }),
-      frameRate: 6,
+      frameRate: 8,
+      repeat: -1,
     });
   }
 }
