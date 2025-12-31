@@ -1,6 +1,7 @@
 import { Actor } from './Actor';
 import { DIRECTION } from '../utils';
 import { COLOR_PRIMARY, AGENT_COLORS, AGENTS } from '../constants';
+import { getIconSpan } from '../icons';
 import eventsCenter from './EventCenter';
 import type { TownScene } from '../scenes/TownScene';
 import type RexUIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';

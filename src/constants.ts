@@ -17,35 +17,40 @@ export const AGENTS = {
   scout: {
     name: 'Scout',
     sprite: 'archie',    // Blue character
-    emoji: '🔍',
+    icon: 'search',      // Lucide Search icon
+    emoji: '🔍',         // Keep for backward compatibility during transition
     role: 'Research Specialist',
     keywords: ['research', 'find', 'search', 'look up', 'company', 'prospect', 'people'],
   },
   sage: {
     name: 'Sage',
     sprite: 'steven',    // Serious looking character
-    emoji: '🧙',
+    icon: 'brain',       // Lucide Brain icon
+    emoji: '🧙',         // Keep for backward compatibility during transition
     role: 'Strategic Analyst',
     keywords: ['analyze', 'compare', 'versus', 'strategy', 'recommend', 'should'],
   },
   chronicle: {
     name: 'Chronicle',
     sprite: 'birch',     // Professional character
-    emoji: '✍️',
+    icon: 'pen-tool',    // Lucide PenTool icon
+    emoji: '✍️',         // Keep for backward compatibility during transition
     role: 'Newsroom Editor',
     keywords: ['article', 'write', 'news', 'CQC', 'care home', 'social care'],
   },
   trends: {
     name: 'Trends',
     sprite: 'maxie',     // Red character
-    emoji: '📈',
+    icon: 'trending-up', // Lucide TrendingUp icon
+    emoji: '📈',         // Keep for backward compatibility during transition
     role: 'Intelligence Analyst',
     keywords: ['trending', 'this week', 'news', 'breaking', 'keywords'],
   },
   maven: {
     name: 'Maven',
     sprite: 'may',       // Friendly character
-    emoji: '👋',
+    icon: 'user',        // Lucide User icon
+    emoji: '👋',         // Keep for backward compatibility during transition
     role: 'General Assistant',
     keywords: ['hello', 'hi', 'help', 'weather', 'general'],
   },

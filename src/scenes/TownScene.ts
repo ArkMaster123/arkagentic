@@ -1,8 +1,10 @@
 import { Scene, Tilemaps, GameObjects, Physics, Math as PhaserMath } from 'phaser';
 import { Agent } from '../classes/Agent';
 import eventsCenter from '../classes/EventCenter';
+import { MiniMap } from '../classes/MiniMap';
 import { AGENTS, AGENT_COLORS, MEETING_POINT, COLOR_PRIMARY, COLOR_LIGHT, COLOR_DARK, API_BASE_URL } from '../constants';
 import { DIRECTION, routeQuery } from '../utils';
+import { getIconSpan } from '../icons';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 import type { Board, QuadGrid } from 'phaser3-rex-plugins/plugins/board-components';
@@ -38,6 +40,9 @@ export class TownScene extends Scene {
   // Edge panning settings
   private edgePanSpeed: number = 300;
   private edgeThreshold: number = 50;
+  
+  // Mini-map
+  private miniMap: MiniMap | null = null;
 
   // Building zones for door detection (pixel coordinates)
   // Based on visible buildings in the tilemap - doors are at bottom of each building
@@ -326,6 +331,17 @@ export class TownScene extends Scene {
   private initUI(): void {
     // Set up the HTML chat panel
     this.setupChatPanel();
+    
+    // Create mini-map in bottom-left corner
+    this.miniMap = new MiniMap(this, {
+      x: 15,
+      y: 600 - 120 - 15, // 15px from bottom
+      width: 120,
+      height: 120,
+      worldWidth: this.map.widthInPixels,
+      worldHeight: this.map.heightInPixels,
+      currentLocation: 'ark-central',
+    });
   }
 
   private setupChatPanel(): void {
@@ -388,7 +404,8 @@ export class TownScene extends Scene {
       `;
     } else {
       const agentConfig = agentType ? AGENTS[agentType as keyof typeof AGENTS] : null;
-      const agentName = agentConfig ? `${agentConfig.emoji} ${agentConfig.name}` : 'Agent';
+      const iconSpan = agentConfig ? getIconSpan(agentConfig.emoji, 14) : '';
+      const agentName = agentConfig ? `${iconSpan} ${agentConfig.name}` : 'Agent';
       messageDiv.innerHTML = `
         <div class="agent-name">${agentName}</div>
         <div class="bubble">
@@ -458,7 +475,8 @@ export class TownScene extends Scene {
     
     const mainAgentType = relevantAgents[0];
     const mainAgentConfig = AGENTS[mainAgentType as keyof typeof AGENTS];
-    this.updateChatStatus(`${mainAgentConfig?.emoji || ''} ${mainAgentConfig?.name || 'Agent'} is thinking...`);
+    const iconSpan = mainAgentConfig ? getIconSpan(mainAgentConfig.emoji, 12) : '';
+    this.updateChatStatus(`${iconSpan} ${mainAgentConfig?.name || 'Agent'} is thinking...`);
 
     // Phase 1: Agents think about the query (show thought bubbles)
     relevantAgents.forEach((agentType) => {
@@ -486,7 +504,8 @@ export class TownScene extends Scene {
       if (result.handoffs && result.handoffs.length > 1) {
         const handoffNames = result.handoffs.map(h => {
           const config = AGENTS[h as keyof typeof AGENTS];
-          return config ? `${config.emoji} ${config.name}` : h;
+          const iconSpan = config ? getIconSpan(config.emoji, 12) : '';
+          return config ? `${iconSpan} ${config.name}` : h;
         }).join(' → ');
         this.updateChatStatus(`Collaborated: ${handoffNames}`);
         
@@ -759,13 +778,13 @@ export class TownScene extends Scene {
       zone.doorY - 20
     );
     this.doorTooltip.setDepth(200);
-    
+
     // Background
     const bg = this.add.graphics();
     bg.fillStyle(0x000000, 0.85);
     bg.fillRoundedRect(-50, -10, 100, 20, 4);
-    
-    // Text
+
+    // Text (keeping emoji for now in Phaser text - will be replaced later)
     const text = this.add.text(0, 0, `${agentConfig.emoji} ${zone.name}`, {
       fontSize: '8px',
       color: '#ffffff',

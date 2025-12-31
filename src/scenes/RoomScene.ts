@@ -1,6 +1,8 @@
 import { Scene, Tilemaps, GameObjects } from 'phaser';
 import { AGENTS, AGENT_COLORS } from '../constants';
 import { DIRECTION } from '../utils';
+import { getIconSpan } from '../icons';
+import { MiniMap } from '../classes/MiniMap';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 
@@ -59,6 +61,9 @@ export class RoomScene extends Scene {
   
   public rexUI!: UIPlugin;
   public rexBoard!: BoardPlugin;
+  
+  // Mini-map
+  private miniMap: MiniMap | null = null;
 
   constructor() {
     super('room-scene');
@@ -301,7 +306,8 @@ export class RoomScene extends Scene {
     // Create name tag in SCREEN SPACE (rendered by UI camera, crisp text)
     const agentColor = AGENT_COLORS[this.agentType as keyof typeof AGENT_COLORS];
     const screenPos = this.worldToScreen(spawnX, spawnY - 35);
-    
+
+    // For Phaser text, keep emoji for now (HTML overlay will handle icons)
     this.agentNameTag = this.add.text(
       0, 0, // Position will be set after we know dimensions
       `${agentConfig.emoji} ${agentConfig.name}`,
@@ -526,6 +532,7 @@ export class RoomScene extends Scene {
     badgeBg.fillRoundedRect(800 - 115, 10, 100, 30, 6);
     badgeBg.setDepth(3001);
     
+    // For Phaser text in UI, keep emoji for now (HTML overlay will handle icons)
     const badgeText = this.add.text(800 - 65, 25, `${agentConfig.emoji} ${agentConfig.name}`, {
       fontSize: '11px',
       color: '#ffffff',
@@ -542,6 +549,17 @@ export class RoomScene extends Scene {
       fontSize: '11px',
       color: '#888888',
     }).setOrigin(0.5).setDepth(3001);
+    
+    // Create mini-map in bottom-left corner (smaller for room view)
+    this.miniMap = new MiniMap(this, {
+      x: 15,
+      y: 600 - 100 - 45, // Above the footer
+      width: 100,
+      height: 100,
+      worldWidth: 384,
+      worldHeight: 272,
+      currentLocation: 'ark-central', // We're inside the village
+    });
     
     // Store UI elements for camera configuration
     this.uiElements = [titleBg, titleText, descText, backBtnBg, backBtnText, backHitArea, badgeBg, badgeText, footerBg, instrText];
@@ -742,6 +760,12 @@ export class RoomScene extends Scene {
     // Cleanup
     this.interactiveObjects.forEach(({ hitArea }) => hitArea.destroy());
     this.interactiveObjects = [];
+    
+    // Cleanup mini-map
+    if (this.miniMap) {
+      this.miniMap.destroy();
+      this.miniMap = null;
+    }
     
     // Update URL to town
     window.history.pushState({}, '', '/town');
