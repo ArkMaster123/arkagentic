@@ -188,3 +188,5 @@ Background: Transparent
 4. **Direction consistency**: UP should show the back of the character, LEFT/RIGHT should show profile views
 5. **Size consistency**: If your character is taller, use 21px height instead of 20px
 
+
+

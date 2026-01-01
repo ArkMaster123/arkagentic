@@ -2,16 +2,19 @@
 FastAPI Server for AgentVerse
 
 Exposes the Strands Agents multi-agent system via REST API.
+Includes database integration for multiplayer persistence.
 """
 
 import os
 import logging
 from typing import Optional, List
 from contextlib import asynccontextmanager
+from datetime import datetime
+import uuid
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -19,6 +22,7 @@ load_dotenv(dotenv_path="../.env.local")
 load_dotenv()
 
 from agents import get_orchestrator, route_to_agent, AGENT_CONFIGS
+import database as db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,14 +60,152 @@ class RouteResponse(BaseModel):
     agent_emoji: str
 
 
+# =============================================================================
+# USER MODELS
+# =============================================================================
+
+
+class CreateUserRequest(BaseModel):
+    display_name: str = Field(..., min_length=1, max_length=50)
+    avatar_sprite: str = "brendan"
+
+
+class UpdateUserRequest(BaseModel):
+    display_name: Optional[str] = Field(None, min_length=1, max_length=50)
+    avatar_sprite: Optional[str] = None
+
+
+class UserResponse(BaseModel):
+    id: str
+    display_name: str
+    avatar_sprite: str
+    is_anonymous: bool
+    created_at: datetime
+
+
+# =============================================================================
+# ROOM MODELS
+# =============================================================================
+
+
+class BuildingResponse(BaseModel):
+    id: str
+    name: str
+    type: str
+    x: int
+    y: int
+    width: int
+    height: int
+    door_x: Optional[int] = None
+    door_y: Optional[int] = None
+    door_width: Optional[int] = None
+    door_height: Optional[int] = None
+    trigger_message: Optional[str] = None
+    agent_slug: Optional[str] = None
+    target_room_slug: Optional[str] = None
+    jitsi_room: Optional[str] = None
+
+
+class SpawnPointResponse(BaseModel):
+    id: str
+    x: int
+    y: int
+    type: str
+    direction: str
+    priority: int
+    agent_slug: Optional[str] = None
+
+
+class RoomResponse(BaseModel):
+    id: str
+    slug: str
+    name: str
+    tilemap_key: str
+    width_tiles: int
+    height_tiles: int
+    tile_size: int
+    default_spawn_x: int
+    default_spawn_y: int
+    is_main: bool
+    buildings: Optional[List[BuildingResponse]] = None
+    spawn_points: Optional[List[SpawnPointResponse]] = None
+
+
+class RoomListResponse(BaseModel):
+    id: str
+    slug: str
+    name: str
+    tilemap_key: str
+    is_main: bool
+
+
+# =============================================================================
+# AGENT MODELS (from database)
+# =============================================================================
+
+
+class AgentDBResponse(BaseModel):
+    id: str
+    slug: str
+    name: str
+    role: str
+    emoji: str
+    sprite_key: str
+    greeting: Optional[str] = None
+    routing_keywords: Optional[List[str]] = None
+    system_prompt: Optional[str] = None
+
+
+# =============================================================================
+# CHAT MODELS
+# =============================================================================
+
+
+class ChatSessionRequest(BaseModel):
+    session_type: str = "agent"  # agent, private, room
+    agent_slug: Optional[str] = None
+    other_user_id: Optional[str] = None
+
+
+class ChatMessageRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=10000)
+    sender_name: Optional[str] = None
+
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    sender_type: str
+    sender_id: str
+    sender_name: str
+    content: str
+    created_at: datetime
+
+
+class ChatSessionResponse(BaseModel):
+    id: str
+    type: str
+    created_at: datetime
+    messages: Optional[List[ChatMessageResponse]] = None
+
+
 # Lifecycle management
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup."""
     logger.info("Starting AgentVerse API server...")
-    logger.info("Initializing Strands Agents orchestrator...")
+
+    # Initialize database connection pool
+    try:
+        await db.get_pool()
+        logger.info("Database connection pool initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize database pool: {e}")
+        import traceback
+
+        traceback.print_exc()
 
     # Pre-initialize the orchestrator
+    logger.info("Initializing Strands Agents orchestrator...")
     try:
         orchestrator = get_orchestrator(use_swarm=False)
         logger.info(
@@ -77,7 +219,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # Cleanup
     logger.info("Shutting down AgentVerse API server...")
+    await db.close_pool()
+    logger.info("Database pool closed")
 
 
 # Create FastAPI app
@@ -209,6 +354,439 @@ async def legacy_chat(request: dict):
 
         traceback.print_exc()
         return {"response": f"Error: {str(e)}", "agent": "maven", "handoffs": []}
+
+
+# =============================================================================
+# USER API ENDPOINTS
+# =============================================================================
+
+
+@app.post("/api/users", response_model=UserResponse)
+async def create_user(request: CreateUserRequest):
+    """Create a new anonymous user."""
+    try:
+        user = await db.create_anonymous_user(
+            display_name=request.display_name, avatar_sprite=request.avatar_sprite
+        )
+        return UserResponse(
+            id=str(user["id"]),
+            display_name=user["display_name"],
+            avatar_sprite=user["avatar_sprite"],
+            is_anonymous=user["is_anonymous"],
+            created_at=user["created_at"],
+        )
+    except Exception as e:
+        logger.error(f"Failed to create user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+
+@app.get("/api/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: str):
+    """Get a user by ID."""
+    try:
+        user = await db.get_user(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return UserResponse(
+            id=str(user["id"]),
+            display_name=user["display_name"],
+            avatar_sprite=user["avatar_sprite"],
+            is_anonymous=user["is_anonymous"],
+            created_at=user["created_at"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user")
+
+
+@app.patch("/api/users/{user_id}", response_model=UserResponse)
+async def update_user(user_id: str, request: UpdateUserRequest):
+    """Update a user's profile."""
+    try:
+        user = await db.update_user(
+            user_id=user_id,
+            display_name=request.display_name,
+            avatar_sprite=request.avatar_sprite,
+        )
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return UserResponse(
+            id=str(user["id"]),
+            display_name=user["display_name"],
+            avatar_sprite=user["avatar_sprite"],
+            is_anonymous=user["is_anonymous"],
+            created_at=datetime.now(),  # Not returned by update, use placeholder
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
+
+
+# =============================================================================
+# ROOM API ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/rooms", response_model=List[RoomListResponse])
+async def list_rooms():
+    """List all available rooms."""
+    try:
+        rooms = await db.get_all_rooms()
+        return [
+            RoomListResponse(
+                id=str(r["id"]),
+                slug=r["slug"],
+                name=r["name"],
+                tilemap_key=r["tilemap_key"],
+                is_main=r["is_main"],
+            )
+            for r in rooms
+        ]
+    except Exception as e:
+        logger.error(f"Failed to list rooms: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list rooms")
+
+
+@app.get("/api/rooms/{slug}", response_model=RoomResponse)
+async def get_room(slug: str):
+    """Get a room by slug with buildings and spawn points."""
+    try:
+        room = await db.get_room(slug)
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+
+        buildings = [
+            BuildingResponse(
+                id=str(b["id"]),
+                name=b["name"],
+                type=b["type"],
+                x=b["x"],
+                y=b["y"],
+                width=b["width"],
+                height=b["height"],
+                door_x=b["door_x"],
+                door_y=b["door_y"],
+                door_width=b["door_width"],
+                door_height=b["door_height"],
+                trigger_message=b["trigger_message"],
+                agent_slug=b["agent_slug"],
+                target_room_slug=b["target_room_slug"],
+                jitsi_room=b["jitsi_room"],
+            )
+            for b in room.get("buildings", [])
+        ]
+
+        spawn_points = [
+            SpawnPointResponse(
+                id=str(sp["id"]),
+                x=sp["x"],
+                y=sp["y"],
+                type=sp["type"],
+                direction=sp["direction"],
+                priority=sp["priority"],
+                agent_slug=sp["agent_slug"],
+            )
+            for sp in room.get("spawn_points", [])
+        ]
+
+        return RoomResponse(
+            id=str(room["id"]),
+            slug=room["slug"],
+            name=room["name"],
+            tilemap_key=room["tilemap_key"],
+            width_tiles=room["width_tiles"],
+            height_tiles=room["height_tiles"],
+            tile_size=room["tile_size"],
+            default_spawn_x=room["default_spawn_x"],
+            default_spawn_y=room["default_spawn_y"],
+            is_main=room["is_main"],
+            buildings=buildings,
+            spawn_points=spawn_points,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get room: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get room")
+
+
+@app.get("/api/rooms/main/info", response_model=RoomResponse)
+async def get_main_room():
+    """Get the main/starting room."""
+    try:
+        room = await db.get_main_room()
+        if not room:
+            raise HTTPException(status_code=404, detail="No main room configured")
+        # Reuse get_room logic
+        return await get_room(room["slug"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get main room: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get main room")
+
+
+# =============================================================================
+# AGENT API ENDPOINTS (from database)
+# =============================================================================
+
+
+@app.get("/api/agents/db", response_model=List[AgentDBResponse])
+async def list_agents_from_db():
+    """List all agents from database (with full details including prompts)."""
+    try:
+        agents = await db.get_all_agents()
+        return [
+            AgentDBResponse(
+                id=str(a["id"]),
+                slug=a["slug"],
+                name=a["name"],
+                role=a["role"],
+                emoji=a["emoji"],
+                sprite_key=a["sprite_key"],
+                greeting=a["greeting"],
+                routing_keywords=a["routing_keywords"],
+                system_prompt=a["system_prompt"],
+            )
+            for a in agents
+        ]
+    except Exception as e:
+        logger.error(f"Failed to list agents from DB: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list agents")
+
+
+@app.get("/api/agents/db/{slug}", response_model=AgentDBResponse)
+async def get_agent_from_db(slug: str):
+    """Get an agent by slug from database."""
+    try:
+        agent = await db.get_agent(slug)
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        return AgentDBResponse(
+            id=str(agent["id"]),
+            slug=agent["slug"],
+            name=agent["name"],
+            role=agent["role"],
+            emoji=agent["emoji"],
+            sprite_key=agent["sprite_key"],
+            greeting=agent["greeting"],
+            routing_keywords=agent["routing_keywords"],
+            system_prompt=agent["system_prompt"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get agent from DB: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get agent")
+
+
+# =============================================================================
+# CHAT API ENDPOINTS
+# =============================================================================
+
+
+@app.post("/api/chat/sessions")
+async def create_chat_session(user_id: str, request: ChatSessionRequest):
+    """Create or get a chat session."""
+    try:
+        # Resolve agent_slug to agent_id if provided
+        agent_id = None
+        if request.agent_slug:
+            agent = await db.get_agent(request.agent_slug)
+            if agent:
+                agent_id = str(agent["id"])
+
+        session = await db.get_or_create_chat_session(
+            user_id=user_id,
+            session_type=request.session_type,
+            agent_id=agent_id,
+            other_user_id=request.other_user_id,
+        )
+        return {
+            "id": str(session["id"]),
+            "type": session["type"],
+            "created_at": session["created_at"],
+        }
+    except Exception as e:
+        logger.error(f"Failed to create chat session: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create chat session")
+
+
+@app.get(
+    "/api/chat/sessions/{session_id}/messages", response_model=List[ChatMessageResponse]
+)
+async def get_chat_messages(
+    session_id: str,
+    limit: int = Query(default=50, le=100),
+    before_id: Optional[str] = None,
+):
+    """Get messages from a chat session."""
+    try:
+        messages = await db.get_chat_messages(
+            session_id=session_id, limit=limit, before_id=before_id
+        )
+        return [
+            ChatMessageResponse(
+                id=str(m["id"]),
+                sender_type=m["sender_type"],
+                sender_id=str(m["sender_id"]),
+                sender_name=m["sender_name"],
+                content=m["content"],
+                created_at=m["created_at"],
+            )
+            for m in messages
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get chat messages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get messages")
+
+
+@app.post(
+    "/api/chat/sessions/{session_id}/messages", response_model=ChatMessageResponse
+)
+async def add_chat_message(
+    session_id: str,
+    user_id: str,
+    request: ChatMessageRequest,
+):
+    """Add a message to a chat session."""
+    try:
+        # Get user info for sender_name if not provided
+        sender_name = request.sender_name
+        if not sender_name:
+            user = await db.get_user(user_id)
+            sender_name = user["display_name"] if user else "Anonymous"
+
+        message = await db.add_chat_message(
+            session_id=session_id,
+            sender_type="user",
+            sender_id=user_id,
+            sender_name=sender_name,
+            content=request.content,
+        )
+        return ChatMessageResponse(
+            id=str(message["id"]),
+            sender_type=message["sender_type"],
+            sender_id=str(message["sender_id"]),
+            sender_name=message["sender_name"],
+            content=message["content"],
+            created_at=message["created_at"],
+        )
+    except Exception as e:
+        logger.error(f"Failed to add chat message: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add message")
+
+
+@app.get("/api/chat/users/{user_id}/sessions")
+async def get_user_sessions(user_id: str, limit: int = Query(default=20, le=50)):
+    """Get a user's recent chat sessions."""
+    try:
+        sessions = await db.get_user_chat_sessions(user_id=user_id, limit=limit)
+        return [
+            {
+                "id": str(s["id"]),
+                "type": s["type"],
+                "created_at": s["created_at"],
+                "last_message_at": s["last_message_at"],
+                "agent_slug": s.get("agent_slug"),
+                "agent_name": s.get("agent_name"),
+                "agent_emoji": s.get("agent_emoji"),
+                "other_user_name": s.get("other_user_name"),
+            }
+            for s in sessions
+        ]
+    except Exception as e:
+        logger.error(f"Failed to get user sessions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get sessions")
+
+
+# =============================================================================
+# PLAYER PRESENCE ENDPOINTS (for multiplayer)
+# =============================================================================
+
+
+@app.post("/api/presence/{user_id}")
+async def update_presence(
+    user_id: str,
+    room_slug: Optional[str] = None,
+    x: Optional[int] = None,
+    y: Optional[int] = None,
+    direction: Optional[str] = None,
+    status: str = "online",
+):
+    """Update player presence/position."""
+    try:
+        # Resolve room_slug to room_id
+        room_id = None
+        if room_slug:
+            room = await db.get_room(room_slug)
+            if room:
+                room_id = str(room["id"])
+
+        presence = await db.update_player_presence(
+            user_id=user_id,
+            room_id=room_id,
+            x=x,
+            y=y,
+            direction=direction,
+            status=status,
+        )
+        return {
+            "user_id": str(presence["user_id"]),
+            "room_id": str(presence["room_id"]) if presence["room_id"] else None,
+            "x": presence["x"],
+            "y": presence["y"],
+            "direction": presence["direction"],
+            "status": presence["status"],
+            "last_update": presence["last_update"],
+        }
+    except Exception as e:
+        logger.error(f"Failed to update presence: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update presence")
+
+
+@app.get("/api/presence/room/{room_slug}")
+async def get_room_players(room_slug: str):
+    """Get all online players in a room."""
+    try:
+        room = await db.get_room(room_slug)
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+
+        players = await db.get_players_in_room(str(room["id"]))
+        return [
+            {
+                "user_id": str(p["user_id"]),
+                "display_name": p["display_name"],
+                "avatar_sprite": p["avatar_sprite"],
+                "x": p["x"],
+                "y": p["y"],
+                "direction": p["direction"],
+                "status": p["status"],
+                "last_update": p["last_update"],
+            }
+            for p in players
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get room players: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get players")
+
+
+@app.delete("/api/presence/{user_id}")
+async def set_offline(user_id: str):
+    """Set a player as offline."""
+    try:
+        await db.set_player_offline(user_id)
+        return {"status": "offline", "user_id": user_id}
+    except Exception as e:
+        logger.error(f"Failed to set offline: {e}")
+        raise HTTPException(status_code=500, detail="Failed to set offline")
 
 
 if __name__ == "__main__":
