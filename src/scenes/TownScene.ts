@@ -54,6 +54,10 @@ export class TownScene extends Scene {
   // Multiplayer
   private multiplayer: MultiplayerManager | null = null;
   private playerCountText: GameObjects.Text | null = null;
+  
+  // Door interaction
+  private nearbyDoor: typeof this.buildingZones[0] | null = null;
+  private doorPrompt: GameObjects.Container | null = null;
 
   // Building zones for door detection (pixel coordinates)
   // Based on visible buildings in the tilemap - doors are at bottom of each building
@@ -128,6 +132,9 @@ export class TownScene extends Scene {
     // Update player
     if (this.player) {
       this.player.update();
+      
+      // Check for nearby doors
+      this.checkDoorProximity();
     }
     
     // Update all agents
@@ -145,6 +152,81 @@ export class TownScene extends Scene {
     if (!this.player?.isMoving) {
       this.handleEdgePanning(delta);
     }
+  }
+  
+  private checkDoorProximity(): void {
+    if (!this.player) return;
+    
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+    const proximityDistance = 24; // pixels
+    
+    // Find nearby door
+    const nearDoor = this.buildingZones.find((zone) => {
+      const doorCenterX = zone.doorX + zone.doorWidth / 2;
+      const doorCenterY = zone.doorY + zone.doorHeight / 2;
+      const distance = Math.sqrt(
+        Math.pow(playerX - doorCenterX, 2) + 
+        Math.pow(playerY - doorCenterY, 2)
+      );
+      return distance < proximityDistance;
+    });
+    
+    if (nearDoor !== this.nearbyDoor) {
+      this.nearbyDoor = nearDoor || null;
+      this.updateDoorPrompt();
+    }
+  }
+  
+  private updateDoorPrompt(): void {
+    // Remove existing prompt
+    if (this.doorPrompt) {
+      this.doorPrompt.destroy();
+      this.doorPrompt = null;
+    }
+    
+    if (!this.nearbyDoor || !this.player) return;
+    
+    const zone = this.nearbyDoor;
+    const agentConfig = AGENTS[zone.agentType as keyof typeof AGENTS];
+    
+    // Create prompt above the door
+    this.doorPrompt = this.add.container(
+      zone.doorX + zone.doorWidth / 2,
+      zone.doorY - 25
+    );
+    this.doorPrompt.setDepth(200);
+    
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.85);
+    bg.fillRoundedRect(-60, -14, 120, 28, 6);
+    bg.lineStyle(1, 0x4a90d9);
+    bg.strokeRoundedRect(-60, -14, 120, 28, 6);
+    
+    // Text
+    const text = this.add.text(0, -2, `Press SPACE to enter`, {
+      fontSize: '9px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    const nameText = this.add.text(0, 8, `${agentConfig?.emoji || ''} ${zone.name}`, {
+      fontSize: '8px',
+      color: '#4a90d9',
+    }).setOrigin(0.5);
+    
+    this.doorPrompt.add([bg, text, nameText]);
+    
+    // Pulse animation
+    this.tweens.add({
+      targets: this.doorPrompt,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
   }
   
   private handleEdgePanning(delta: number): void {
@@ -827,6 +909,22 @@ export class TownScene extends Scene {
   private setupEventListeners(): void {
     // Create interactive zones for building doors
     this.createDoorZones();
+    
+    // SPACE key to enter nearby building
+    this.input.keyboard?.on('keydown-SPACE', () => {
+      if (this.nearbyDoor) {
+        console.log(`[TownScene] Entering ${this.nearbyDoor.name} via SPACE key`);
+        this.enterBuilding(this.nearbyDoor);
+      }
+    });
+    
+    // E key as alternative
+    this.input.keyboard?.on('keydown-E', () => {
+      if (this.nearbyDoor) {
+        console.log(`[TownScene] Entering ${this.nearbyDoor.name} via E key`);
+        this.enterBuilding(this.nearbyDoor);
+      }
+    });
     
     // Listen for pointer events on the scene
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
