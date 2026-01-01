@@ -1,5 +1,6 @@
 import { Game, Scale, Types, WEBGL } from 'phaser';
 import { LoadingScene } from './scenes/LoadingScene';
+import { CharacterSelectScene } from './scenes/CharacterSelectScene';
 import { TownScene } from './scenes/TownScene';
 import { RoomScene } from './scenes/RoomScene';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
@@ -139,7 +140,7 @@ export const gameConfig: Types.Core.GameConfig = {
   audio: {
     disableWebAudio: false,
   },
-  scene: [LoadingScene, TownScene, RoomScene],
+  scene: [LoadingScene, CharacterSelectScene, TownScene, RoomScene],
   dom: {
     createContainer: true,
   },

@@ -1,5 +1,7 @@
 import { Scene, Tilemaps, GameObjects, Physics, Math as PhaserMath } from 'phaser';
 import { Agent } from '../classes/Agent';
+import { Player } from '../classes/Player';
+import { MultiplayerManager } from '../classes/MultiplayerManager';
 import eventsCenter from '../classes/EventCenter';
 import { MiniMap } from '../classes/MiniMap';
 import { AGENTS, AGENT_COLORS, MEETING_POINT, COLOR_PRIMARY, COLOR_LIGHT, COLOR_DARK, API_BASE_URL } from '../constants';
@@ -43,6 +45,15 @@ export class TownScene extends Scene {
   
   // Mini-map
   private miniMap: MiniMap | null = null;
+  
+  // Player (user-controlled character)
+  private player: Player | null = null;
+  private playerAvatar: string = 'brendan';
+  private playerName: string = 'Player';
+  
+  // Multiplayer
+  private multiplayer: MultiplayerManager | null = null;
+  private playerCountText: GameObjects.Text | null = null;
 
   // Building zones for door detection (pixel coordinates)
   // Based on visible buildings in the tilemap - doors are at bottom of each building
@@ -75,15 +86,35 @@ export class TownScene extends Scene {
     super('town-scene');
   }
 
-  create(): void {
+  create(data?: { playerAvatar?: string; playerName?: string; isNewPlayer?: boolean }): void {
+    // Get player info from scene data or localStorage
+    if (data?.playerAvatar) {
+      this.playerAvatar = data.playerAvatar;
+      this.playerName = data.playerName || 'Player';
+    } else {
+      const storedUser = localStorage.getItem('arkagentic_user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        this.playerAvatar = user.avatar_sprite || 'brendan';
+        this.playerName = user.display_name || 'Player';
+      }
+    }
+    
     this.initMap();
     this.initBoard();
+    this.initPlayer();
     this.initAgents();
     this.initCamera();
     this.initUI();
+    this.initMultiplayer();
     
     // Listen for global events
     this.setupEventListeners();
+    
+    // Show welcome message for new players
+    if (data?.isNewPlayer) {
+      this.showWelcomeMessage();
+    }
     
     // Hide any transition overlay (in case we came from another scene)
     setTimeout(() => {
@@ -94,13 +125,26 @@ export class TownScene extends Scene {
   }
 
   update(time: number, delta: number): void {
+    // Update player
+    if (this.player) {
+      this.player.update();
+    }
+    
     // Update all agents
     this.agents.forEach((agent) => {
       agent.update();
     });
     
+    // Update multiplayer (interpolation for remote players)
+    if (this.multiplayer) {
+      this.multiplayer.update();
+    }
+    
     // Edge panning - move camera when mouse is near screen edges
-    this.handleEdgePanning(delta);
+    // Only when player is not moving (WASD takes priority)
+    if (!this.player?.isMoving) {
+      this.handleEdgePanning(delta);
+    }
   }
   
   private handleEdgePanning(delta: number): void {
@@ -305,9 +349,37 @@ export class TownScene extends Scene {
 
     // Agent-to-agent collision
     this.physics.add.collider(this.agentGroup, this.agentGroup);
+    
+    // Player-to-agent collision (if player exists)
+    if (this.player) {
+      this.physics.add.collider(this.player, this.agentGroup);
+    }
 
     // Set world bounds using tilemap pixel dimensions
     this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+  }
+
+  private initPlayer(): void {
+    // Spawn player near the center of the map
+    const spawnX = 275;
+    const spawnY = 250;
+    
+    this.player = new Player(this, spawnX, spawnY, this.playerAvatar);
+    this.player.setDepth(15); // Above agents but below UI
+    
+    // Add collisions with map layers
+    if (this.wallLayer) this.physics.add.collider(this.player, this.wallLayer);
+    if (this.treeLayer) this.physics.add.collider(this.player, this.treeLayer);
+    if (this.houseLayer) this.physics.add.collider(this.player, this.houseLayer);
+    
+    // Set up position update callback for multiplayer
+    this.player.onPositionChange = (x, y, direction, isMoving, animation) => {
+      if (this.multiplayer) {
+        this.multiplayer.sendPosition(x, y, direction, isMoving, animation);
+      }
+    };
+    
+    console.log(`[TownScene] Player spawned as ${this.playerName} with avatar ${this.playerAvatar}`);
   }
 
   private initCamera(): void {
@@ -320,12 +392,87 @@ export class TownScene extends Scene {
     this.cameras.main.setSize(this.game.scale.width, this.game.scale.height);
     this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
 
-    // Start centered on meeting point
-    this.cameras.main.centerOn(MEETING_POINT.x, MEETING_POINT.y);
+    // Follow the player instead of centering on meeting point
+    if (this.player) {
+      this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    } else {
+      this.cameras.main.centerOn(MEETING_POINT.x, MEETING_POINT.y);
+    }
     this.cameras.main.setZoom(2);
 
     // Set default cursor
     this.input.manager.canvas.style.cursor = 'default';
+  }
+  
+  private async initMultiplayer(): Promise<void> {
+    this.multiplayer = new MultiplayerManager(this);
+    
+    // Try to connect to multiplayer server
+    const connected = await this.multiplayer.connect('town');
+    
+    if (connected) {
+      console.log('[TownScene] Multiplayer connected!');
+      this.updatePlayerCount();
+    } else {
+      console.log('[TownScene] Multiplayer offline - playing solo');
+    }
+  }
+  
+  private updatePlayerCount(): void {
+    if (!this.multiplayer) return;
+    
+    const count = this.multiplayer.getPlayerCount();
+    
+    if (this.playerCountText) {
+      this.playerCountText.setText(`Players: ${count}`);
+    }
+  }
+  
+  private showWelcomeMessage(): void {
+    const { width, height } = this.cameras.main;
+    
+    // Create welcome banner
+    const banner = this.add.container(width / 2, 50);
+    banner.setScrollFactor(0);
+    banner.setDepth(1000);
+    
+    const bg = this.add.rectangle(0, 0, 300, 40, 0x000000, 0.8);
+    bg.setStrokeStyle(2, 0x4a90d9);
+    
+    const text = this.add.text(0, 0, `Welcome, ${this.playerName}!`, {
+      fontSize: '16px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    const subtext = this.add.text(0, 18, 'Use WASD or Arrow keys to move', {
+      fontSize: '10px',
+      color: '#aaaaaa',
+    }).setOrigin(0.5);
+    
+    banner.add([bg, text, subtext]);
+    
+    // Animate in
+    banner.setAlpha(0);
+    banner.y = 30;
+    
+    this.tweens.add({
+      targets: banner,
+      alpha: 1,
+      y: 50,
+      duration: 500,
+      ease: 'Back.easeOut',
+    });
+    
+    // Fade out after 4 seconds
+    this.time.delayedCall(4000, () => {
+      this.tweens.add({
+        targets: banner,
+        alpha: 0,
+        y: 30,
+        duration: 500,
+        onComplete: () => banner.destroy(),
+      });
+    });
   }
 
   private initUI(): void {
@@ -342,6 +489,22 @@ export class TownScene extends Scene {
       worldHeight: this.map.heightInPixels,
       currentLocation: 'ark-central',
     });
+    
+    // Player count indicator (top-right, fixed to camera)
+    this.playerCountText = this.add.text(780, 10, 'Players: 1', {
+      fontSize: '12px',
+      color: '#ffffff',
+      backgroundColor: '#000000aa',
+      padding: { x: 6, y: 4 },
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
+    
+    // Player name indicator (top-left, fixed to camera)
+    this.add.text(10, 10, this.playerName, {
+      fontSize: '12px',
+      color: '#4a90d9',
+      backgroundColor: '#000000aa',
+      padding: { x: 6, y: 4 },
+    }).setScrollFactor(0).setDepth(100);
   }
 
   private setupChatPanel(): void {

@@ -78,14 +78,46 @@ export class LoadingScene extends Scene {
       });
     });
 
-    // Load player sprite (brendan)
-    this.load.spritesheet('player', 'assets/sprites/brendan.png', {
-      frameWidth: 14,
-      frameHeight: 21,
+    // Load all character sprites for player selection
+    // These will be used for both NPCs and player avatars
+    const allCharacters: Record<string, { width: number; height: number }> = {
+      archie: { width: 16, height: 20 },
+      birch: { width: 16, height: 20 },
+      maxie: { width: 16, height: 20 },
+      steven: { width: 16, height: 21 },
+      may: { width: 14, height: 20 },
+      brendan: { width: 14, height: 21 },
+      joseph: { width: 14, height: 21 },
+    };
+    
+    Object.entries(allCharacters).forEach(([key, size]) => {
+      // Only load if not already loaded (some may be loaded as agent sprites)
+      if (!this.textures.exists(key)) {
+        this.load.spritesheet(key, `assets/sprites/${key}.png`, {
+          frameWidth: size.width,
+          frameHeight: size.height,
+        });
+      }
     });
   }
 
   create(): void {
-    this.scene.start('town-scene');
+    // Check if user has already created a character
+    const storedUser = localStorage.getItem('arkagentic_user');
+    
+    if (storedUser) {
+      // Returning player - go straight to town
+      const user = JSON.parse(storedUser);
+      console.log(`[Loading] Welcome back, ${user.display_name}!`);
+      this.scene.start('town-scene', {
+        playerAvatar: user.avatar_sprite || 'brendan',
+        playerName: user.display_name || 'Player',
+        isNewPlayer: false,
+      });
+    } else {
+      // New player - show character selection
+      console.log('[Loading] New player - showing character select');
+      this.scene.start('character-select-scene');
+    }
   }
 }
