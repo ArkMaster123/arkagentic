@@ -1,4 +1,5 @@
 import { Scene, GameObjects } from 'phaser';
+import { API_BASE_URL } from '../constants';
 
 interface CharacterOption {
   key: string;
@@ -26,8 +27,13 @@ export class CharacterSelectScene extends Scene {
   private characterSprites: GameObjects.Sprite[] = [];
   private selectionBox!: GameObjects.Rectangle;
   private nameText!: GameObjects.Text;
-  private inputElement: HTMLInputElement | null = null;
   private displayName: string = '';
+  private nameInputText!: GameObjects.Text;
+  private isTyping: boolean = false;
+  private cursorVisible: boolean = true;
+  private cursorTimer?: Phaser.Time.TimerEvent;
+  private isLoading: boolean = false;
+  private errorText!: GameObjects.Text;
 
   constructor() {
     super('character-select-scene');
@@ -42,23 +48,7 @@ export class CharacterSelectScene extends Scene {
     bg.fillRect(0, 0, width, height);
     
     // Starry background effect
-    for (let i = 0; i < 100; i++) {
-      const x = Math.random() * width;
-      const y = Math.random() * height;
-      const size = Math.random() * 2 + 1;
-      const alpha = Math.random() * 0.5 + 0.3;
-      const star = this.add.circle(x, y, size, 0xffffff, alpha);
-      
-      // Twinkle animation
-      this.tweens.add({
-        targets: star,
-        alpha: alpha * 0.3,
-        duration: 1000 + Math.random() * 2000,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
-    }
+    this.createStars(width, height);
     
     // Title with glow effect
     const title = this.add.text(width / 2, 60, 'Welcome to ArkAgentic!', {
@@ -88,20 +78,48 @@ export class CharacterSelectScene extends Scene {
     // Character selection area
     this.createCharacterGrid(width, height);
     
-    // Name input area
+    // Name input area (using Phaser text, not DOM)
     this.createNameInput(width, height);
     
     // Start button
     this.createStartButton(width, height);
     
-    // Instructions
-    this.add.text(width / 2, height - 40, 'Use arrow keys or click to select  |  Press ENTER to start', {
+    // Error text (hidden by default)
+    this.errorText = this.add.text(width / 2, 450, '', {
       fontSize: '12px',
+      color: '#ff6b6b',
+    }).setOrigin(0.5);
+    
+    // Instructions
+    this.add.text(width / 2, height - 40, 'Click name box to type  |  Arrow keys to select character  |  ENTER to start', {
+      fontSize: '11px',
       color: '#666666',
     }).setOrigin(0.5);
     
     // Keyboard navigation
     this.setupKeyboardControls();
+    
+    // Generate random default name
+    this.generateRandomName();
+  }
+
+  private createStars(width: number, height: number): void {
+    for (let i = 0; i < 100; i++) {
+      const x = Math.random() * width;
+      const y = Math.random() * height;
+      const size = Math.random() * 2 + 1;
+      const alpha = Math.random() * 0.5 + 0.3;
+      const star = this.add.circle(x, y, size, 0xffffff, alpha);
+      
+      this.tweens.add({
+        targets: star,
+        alpha: alpha * 0.3,
+        duration: 1000 + Math.random() * 2000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
   }
 
   private createCharacterGrid(width: number, height: number): void {
@@ -117,7 +135,7 @@ export class CharacterSelectScene extends Scene {
       const x = gridStartX + index * 50;
       
       // Character platform
-      const platform = this.add.ellipse(x, gridY + 20, 36, 12, 0x000000, 0.3);
+      this.add.ellipse(x, gridY + 20, 36, 12, 0x000000, 0.3);
       
       // Character sprite
       const sprite = this.add.sprite(x, gridY, char.key, 0);
@@ -163,20 +181,14 @@ export class CharacterSelectScene extends Scene {
   }
 
   private createCharacterAnims(key: string): void {
-    // Only create if doesn't exist
     if (this.anims.exists(`${key}-idle-down`)) return;
     
-    const char = this.characters.find(c => c.key === key);
-    if (!char) return;
-    
-    // Idle animation (first frame of down direction)
     this.anims.create({
       key: `${key}-idle-down`,
       frames: [{ key: key, frame: 0 }],
       frameRate: 1,
     });
     
-    // Walk animation for preview
     this.anims.create({
       key: `${key}-walk-down`,
       frames: this.anims.generateFrameNumbers(key, { start: 0, end: 2 }),
@@ -187,83 +199,88 @@ export class CharacterSelectScene extends Scene {
 
   private createNameInput(width: number, height: number): void {
     // Label
-    this.add.text(width / 2, 290, 'Enter your name:', {
+    this.add.text(width / 2, 290, 'Your Name:', {
       fontSize: '14px',
       color: '#ffffff',
     }).setOrigin(0.5);
     
-    // Create HTML input element
-    const inputX = width / 2 - 100;
-    const inputY = 310;
+    // Input box background
+    const inputBg = this.add.rectangle(width / 2, 325, 220, 36, 0x2a2a4a);
+    inputBg.setStrokeStyle(2, 0x4a90d9);
+    inputBg.setInteractive({ useHandCursor: true });
     
-    // Input background in Phaser
-    const inputBg = this.add.rectangle(width / 2, inputY + 15, 200, 30, 0x2a2a4a);
-    inputBg.setStrokeStyle(1, 0x4a90d9);
+    // Name text display
+    this.nameInputText = this.add.text(width / 2, 325, '', {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontFamily: 'Arial, sans-serif',
+    }).setOrigin(0.5);
     
-    // Create DOM input
-    this.inputElement = document.createElement('input');
-    this.inputElement.type = 'text';
-    this.inputElement.maxLength = 20;
-    this.inputElement.placeholder = 'Your display name...';
-    this.inputElement.style.cssText = `
-      position: absolute;
-      left: ${inputX}px;
-      top: ${inputY}px;
-      width: 200px;
-      height: 30px;
-      background: transparent;
-      border: none;
-      color: #ffffff;
-      font-size: 14px;
-      text-align: center;
-      outline: none;
-      font-family: Arial, sans-serif;
-    `;
+    // Click to focus
+    inputBg.on('pointerdown', () => {
+      this.startTyping();
+    });
     
-    // Generate random default name
+    // Click elsewhere to unfocus
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, targets: GameObjects.GameObject[]) => {
+      if (!targets.includes(inputBg)) {
+        this.stopTyping();
+      }
+    });
+  }
+
+  private startTyping(): void {
+    this.isTyping = true;
+    this.cursorVisible = true;
+    this.updateNameDisplay();
+    
+    // Blink cursor
+    this.cursorTimer = this.time.addEvent({
+      delay: 500,
+      callback: () => {
+        this.cursorVisible = !this.cursorVisible;
+        this.updateNameDisplay();
+      },
+      loop: true,
+    });
+  }
+
+  private stopTyping(): void {
+    this.isTyping = false;
+    if (this.cursorTimer) {
+      this.cursorTimer.remove();
+      this.cursorTimer = undefined;
+    }
+    this.updateNameDisplay();
+  }
+
+  private updateNameDisplay(): void {
+    const cursor = this.isTyping && this.cursorVisible ? '|' : '';
+    const displayText = this.displayName || (this.isTyping ? '' : 'Click to enter name...');
+    this.nameInputText.setText(displayText + cursor);
+    this.nameInputText.setColor(this.displayName ? '#ffffff' : '#888888');
+  }
+
+  private generateRandomName(): void {
     const adjectives = ['Swift', 'Brave', 'Clever', 'Noble', 'Mystic', 'Shadow', 'Storm', 'Fire', 'Ice', 'Thunder'];
     const nouns = ['Explorer', 'Wanderer', 'Seeker', 'Ranger', 'Knight', 'Mage', 'Scout', 'Hero', 'Champion', 'Sage'];
-    const randomName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}`;
-    this.inputElement.value = randomName;
-    this.displayName = randomName;
-    
-    this.inputElement.addEventListener('input', (e) => {
-      this.displayName = (e.target as HTMLInputElement).value;
-    });
-    
-    this.inputElement.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        this.startGame();
-      }
-    });
-    
-    document.body.appendChild(this.inputElement);
-    
-    // Clean up on scene shutdown
-    this.events.on('shutdown', () => {
-      if (this.inputElement) {
-        this.inputElement.remove();
-        this.inputElement = null;
-      }
-    });
+    this.displayName = `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}`;
+    this.updateNameDisplay();
   }
 
   private createStartButton(width: number, height: number): void {
     const buttonY = 400;
     
-    // Button background
     const button = this.add.rectangle(width / 2, buttonY, 180, 45, 0x4a90d9);
     button.setStrokeStyle(2, 0x6ab0f9);
     button.setInteractive({ useHandCursor: true });
     
-    // Button text
     const buttonText = this.add.text(width / 2, buttonY, 'Start Adventure!', {
       fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     
-    // Button hover effects
     button.on('pointerover', () => {
       button.setFillStyle(0x5aa0e9);
       this.tweens.add({
@@ -294,31 +311,41 @@ export class CharacterSelectScene extends Scene {
   }
 
   private setupKeyboardControls(): void {
-    // Arrow keys for character selection
-    this.input.keyboard?.on('keydown-LEFT', () => {
-      this.selectCharacter(Math.max(0, this.selectedIndex - 1));
-    });
-    
-    this.input.keyboard?.on('keydown-RIGHT', () => {
-      this.selectCharacter(Math.min(this.characters.length - 1, this.selectedIndex + 1));
-    });
-    
-    this.input.keyboard?.on('keydown-ENTER', () => {
-      // Only start if input is not focused
-      if (document.activeElement !== this.inputElement) {
+    // Handle text input when typing
+    this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+      if (this.isTyping) {
+        if (event.key === 'Backspace') {
+          this.displayName = this.displayName.slice(0, -1);
+          this.updateNameDisplay();
+        } else if (event.key === 'Enter') {
+          this.stopTyping();
+          this.startGame();
+        } else if (event.key === 'Escape') {
+          this.stopTyping();
+        } else if (event.key.length === 1 && this.displayName.length < 20) {
+          // Single character - add to name
+          this.displayName += event.key;
+          this.updateNameDisplay();
+        }
+        return;
+      }
+      
+      // Character selection when not typing
+      if (event.key === 'ArrowLeft') {
+        this.selectCharacter(Math.max(0, this.selectedIndex - 1));
+      } else if (event.key === 'ArrowRight') {
+        this.selectCharacter(Math.min(this.characters.length - 1, this.selectedIndex + 1));
+      } else if (event.key === 'Enter') {
         this.startGame();
       }
     });
   }
 
   private selectCharacter(index: number): void {
-    // Clear previous selection tint
     this.characterSprites[this.selectedIndex]?.clearTint();
-    
     this.selectedIndex = index;
     this.updateSelection();
     
-    // Play walk animation briefly on selection
     const sprite = this.characterSprites[index];
     sprite.play(`${this.characters[index].key}-walk-down`);
     
@@ -332,7 +359,6 @@ export class CharacterSelectScene extends Scene {
     const sprite = this.characterSprites[this.selectedIndex];
     
     if (sprite && this.selectionBox) {
-      // Animate selection box to new position
       this.tweens.add({
         targets: this.selectionBox,
         x: sprite.x,
@@ -341,43 +367,86 @@ export class CharacterSelectScene extends Scene {
         ease: 'Cubic.easeOut',
       });
       
-      // Highlight selected sprite
       sprite.setTint(0xffffff);
-      
-      // Update name text
       this.nameText.setText(char.name);
     }
   }
 
-  private startGame(): void {
+  private async startGame(): Promise<void> {
+    if (this.isLoading) return;
+    
     const selectedChar = this.characters[this.selectedIndex];
     const name = this.displayName.trim() || `Player${Math.floor(Math.random() * 9999)}`;
     
-    // Save to localStorage
-    const userData = {
-      avatar_sprite: selectedChar.key,
-      display_name: name,
-      created_locally: true,
-    };
-    localStorage.setItem('arkagentic_user', JSON.stringify(userData));
+    this.isLoading = true;
+    this.errorText.setText('Creating your character...');
+    this.errorText.setColor('#4a90d9');
     
-    console.log(`[CharacterSelect] Starting game as ${name} with avatar ${selectedChar.key}`);
-    
-    // Remove input element
-    if (this.inputElement) {
-      this.inputElement.remove();
-      this.inputElement = null;
+    try {
+      // Create user in database via API
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          display_name: name,
+          avatar_sprite: selectedChar.key,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to create user: ${response.status}`);
+      }
+      
+      const user = await response.json();
+      console.log(`[CharacterSelect] Created user in database:`, user);
+      
+      // Store only the user ID in localStorage for future sessions
+      localStorage.setItem('arkagentic_user_id', user.id);
+      
+      // Also cache the full user data for immediate use
+      localStorage.setItem('arkagentic_user', JSON.stringify(user));
+      
+      this.errorText.setText('');
+      
+      // Fade out and start town scene
+      this.cameras.main.fadeOut(500, 0, 0, 0);
+      
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.start('town-scene', {
+          playerAvatar: selectedChar.key,
+          playerName: name,
+          odyseus: user.id,
+          isNewPlayer: true,
+        });
+      });
+      
+    } catch (error) {
+      console.error('[CharacterSelect] Failed to create user:', error);
+      this.errorText.setText('Connection failed - starting offline...');
+      this.errorText.setColor('#ffaa00');
+      
+      // Fallback: Store locally and continue anyway
+      const offlineUser = {
+        id: `offline-${Date.now()}`,
+        display_name: name,
+        avatar_sprite: selectedChar.key,
+        is_offline: true,
+      };
+      localStorage.setItem('arkagentic_user', JSON.stringify(offlineUser));
+      
+      this.time.delayedCall(1500, () => {
+        this.cameras.main.fadeOut(500, 0, 0, 0);
+        
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+          this.scene.start('town-scene', {
+            playerAvatar: selectedChar.key,
+            playerName: name,
+            isNewPlayer: true,
+          });
+        });
+      });
     }
     
-    // Fade out and start town scene
-    this.cameras.main.fadeOut(500, 0, 0, 0);
-    
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('town-scene', {
-        playerAvatar: selectedChar.key,
-        playerName: name,
-        isNewPlayer: true,
-      });
-    });
+    this.isLoading = false;
   }
 }

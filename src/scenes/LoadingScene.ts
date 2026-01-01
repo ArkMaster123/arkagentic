@@ -101,23 +101,60 @@ export class LoadingScene extends Scene {
     });
   }
 
-  create(): void {
+  async create(): Promise<void> {
     // Check if user has already created a character
-    const storedUser = localStorage.getItem('arkagentic_user');
+    const userId = localStorage.getItem('arkagentic_user_id');
+    const cachedUser = localStorage.getItem('arkagentic_user');
     
-    if (storedUser) {
-      // Returning player - go straight to town
-      const user = JSON.parse(storedUser);
-      console.log(`[Loading] Welcome back, ${user.display_name}!`);
+    if (userId) {
+      // Try to fetch user from database
+      try {
+        const response = await fetch(`/api/users/${userId}`);
+        if (response.ok) {
+          const user = await response.json();
+          console.log(`[Loading] Welcome back, ${user.display_name}!`);
+          
+          // Update cache
+          localStorage.setItem('arkagentic_user', JSON.stringify(user));
+          
+          this.scene.start('town-scene', {
+            playerAvatar: user.avatar_sprite || 'brendan',
+            playerName: user.display_name || 'Player',
+            userId: user.id,
+            isNewPlayer: false,
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('[Loading] Failed to fetch user from database:', error);
+      }
+      
+      // Fallback to cached data if API fails
+      if (cachedUser) {
+        const user = JSON.parse(cachedUser);
+        console.log(`[Loading] Using cached data for ${user.display_name}`);
+        this.scene.start('town-scene', {
+          playerAvatar: user.avatar_sprite || 'brendan',
+          playerName: user.display_name || 'Player',
+          userId: user.id,
+          isNewPlayer: false,
+        });
+        return;
+      }
+    } else if (cachedUser) {
+      // Legacy: user data stored but no ID (offline created)
+      const user = JSON.parse(cachedUser);
+      console.log(`[Loading] Using offline user: ${user.display_name}`);
       this.scene.start('town-scene', {
         playerAvatar: user.avatar_sprite || 'brendan',
         playerName: user.display_name || 'Player',
         isNewPlayer: false,
       });
-    } else {
-      // New player - show character selection
-      console.log('[Loading] New player - showing character select');
-      this.scene.start('character-select-scene');
+      return;
     }
+    
+    // New player - show character selection
+    console.log('[Loading] New player - showing character select');
+    this.scene.start('character-select-scene');
   }
 }

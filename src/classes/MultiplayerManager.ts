@@ -103,47 +103,37 @@ export class MultiplayerManager {
   }
 
   /**
-   * Load user from localStorage or create via API
+   * Load user from localStorage (already created in CharacterSelectScene)
    */
   private async loadOrCreateUser(): Promise<void> {
-    // Check localStorage for existing user
-    const storedUser = localStorage.getItem('arkagentic_user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
+    // Get user ID from localStorage
+    const userId = localStorage.getItem('arkagentic_user_id');
+    const cachedUser = localStorage.getItem('arkagentic_user');
+    
+    if (userId && cachedUser) {
+      const user = JSON.parse(cachedUser);
       this.userId = user.id;
-      this.displayName = user.display_name;
-      this.avatarSprite = user.avatar_sprite;
-      console.log(`[Multiplayer] Loaded user: ${this.displayName}`);
+      this.displayName = user.display_name || 'Player';
+      this.avatarSprite = user.avatar_sprite || 'brendan';
+      console.log(`[Multiplayer] Loaded user from storage: ${this.displayName} (${this.userId})`);
       return;
     }
     
-    // Create new anonymous user via API
-    try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          display_name: `Player${Math.floor(Math.random() * 9999)}`,
-          avatar_sprite: 'brendan',
-        }),
-      });
-      
-      if (response.ok) {
-        const user = await response.json();
-        this.userId = user.id;
-        this.displayName = user.display_name;
-        this.avatarSprite = user.avatar_sprite;
-        
-        // Store in localStorage
-        localStorage.setItem('arkagentic_user', JSON.stringify(user));
-        console.log(`[Multiplayer] Created user: ${this.displayName}`);
-      }
-    } catch (error) {
-      console.error('[Multiplayer] Failed to create user:', error);
-      // Use random ID as fallback
-      this.userId = `anon-${Date.now()}`;
-      this.displayName = `Guest${Math.floor(Math.random() * 9999)}`;
+    if (cachedUser) {
+      // Offline/legacy user
+      const user = JSON.parse(cachedUser);
+      this.userId = user.id || `offline-${Date.now()}`;
+      this.displayName = user.display_name || 'Player';
+      this.avatarSprite = user.avatar_sprite || 'brendan';
+      console.log(`[Multiplayer] Using offline user: ${this.displayName}`);
+      return;
     }
+    
+    // Fallback - should not happen if CharacterSelectScene worked
+    console.warn('[Multiplayer] No user found - using anonymous');
+    this.userId = `anon-${Date.now()}`;
+    this.displayName = `Guest${Math.floor(Math.random() * 9999)}`;
+    this.avatarSprite = 'brendan';
   }
 
   /**
