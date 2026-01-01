@@ -315,6 +315,21 @@ export class MultiplayerManager {
   }
 
   /**
+   * Update display name (for settings changes)
+   */
+  setDisplayName(name: string): void {
+    this.displayName = name;
+    
+    // If connected, update the server
+    if (this.room && this.isConnected && this.room.state.players.get(this.room.sessionId)) {
+      const playerState = this.room.state.players.get(this.room.sessionId);
+      if (playerState) {
+        playerState.displayName = name;
+      }
+    }
+  }
+
+  /**
    * Send local player position to server
    */
   sendPosition(x: number, y: number, direction: string, isMoving: boolean, animation: string): void {

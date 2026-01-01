@@ -55,6 +55,7 @@ export class TownScene extends Scene {
   // Multiplayer
   private multiplayer: MultiplayerManager | null = null;
   private playerCountText: GameObjects.Text | null = null;
+  private playerNameText: GameObjects.Text | null = null;
   
   // Jitsi proximity chat
   private jitsiManager: JitsiManager | null = null;
@@ -487,7 +488,7 @@ export class TownScene extends Scene {
     const spawnX = 275;
     const spawnY = 250;
     
-    this.player = new Player(this, spawnX, spawnY, this.playerAvatar);
+    this.player = new Player(this, spawnX, spawnY, this.playerAvatar, this.playerName);
     this.player.setDepth(15); // Above agents but below UI
     
     // Add collisions with map layers
@@ -765,7 +766,7 @@ export class TownScene extends Scene {
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
     
     // Player name indicator (top-left, fixed to camera)
-    this.add.text(10, 10, this.playerName, {
+    this.playerNameText = this.add.text(10, 10, this.playerName, {
       fontSize: '12px',
       color: '#4a90d9',
       backgroundColor: '#000000aa',
@@ -1290,5 +1291,67 @@ export class TownScene extends Scene {
         fromTown: true,
       });
     }
+  }
+
+  /**
+   * Update player settings (name and avatar) from settings modal
+   */
+  updatePlayerSettings(displayName: string, avatarSprite: string): void {
+    // Update local state
+    this.playerName = displayName;
+    this.playerAvatar = avatarSprite;
+    
+    // Update player display name
+    if (this.player) {
+      this.player.setDisplayName(displayName);
+      
+      // Update avatar texture if it changed
+      if (this.player.texture.key !== avatarSprite) {
+        const currentX = this.player.x;
+        const currentY = this.player.y;
+        const currentDepth = this.player.depth;
+        
+        // Remove old player
+        this.player.destroy();
+        
+        // Create new player with new avatar
+        this.player = new Player(this, currentX, currentY, avatarSprite, displayName);
+        this.player.setDepth(currentDepth);
+        
+        // Re-add collisions
+        if (this.wallLayer) this.physics.add.collider(this.player, this.wallLayer);
+        if (this.treeLayer) this.physics.add.collider(this.player, this.treeLayer);
+        if (this.houseLayer) this.physics.add.collider(this.player, this.houseLayer);
+        
+        // Re-setup position callback
+        this.player.onPositionChange = (x, y, direction, isMoving, animation) => {
+          if (this.multiplayer) {
+            this.multiplayer.sendPosition(x, y, direction, isMoving, animation);
+          }
+        };
+        
+        // Restore camera follow
+        if (this.cameras.main) {
+          this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        }
+      }
+    }
+    
+    // Update multiplayer display name
+    if (this.multiplayer) {
+      this.multiplayer.setDisplayName(displayName);
+    }
+    
+    // Update Jitsi display name
+    if (this.jitsiManager) {
+      this.jitsiManager.config.playerName = displayName;
+    }
+    
+    // Update UI text (top-left player name indicator)
+    if (this.playerNameText) {
+      this.playerNameText.setText(displayName);
+    }
+    
+    console.log(`[TownScene] Updated player settings: ${displayName} (${avatarSprite})`);
   }
 }
