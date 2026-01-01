@@ -372,6 +372,15 @@ export class CharacterSelectScene extends Scene {
     }
   }
 
+  /**
+   * Generate a secure random session token (64 hex characters)
+   */
+  private generateSessionToken(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+  }
+
   private async startGame(): Promise<void> {
     if (this.isLoading) return;
     
@@ -382,14 +391,18 @@ export class CharacterSelectScene extends Scene {
     this.errorText.setText('Creating your character...');
     this.errorText.setColor('#4a90d9');
     
+    // Generate session token client-side for better security
+    const sessionToken = this.generateSessionToken();
+    
     try {
-      // Create user in database via API
+      // Create user in database via API with session token
       const response = await fetch(`${API_BASE_URL}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           display_name: name,
           avatar_sprite: selectedChar.key,
+          session_token: sessionToken,
         }),
       });
       
@@ -400,11 +413,10 @@ export class CharacterSelectScene extends Scene {
       const user = await response.json();
       console.log(`[CharacterSelect] Created user in database:`, user);
       
-      // Store only the user ID in localStorage for future sessions
+      // Store ONLY session credentials in localStorage
+      // User data is always fetched fresh from the database
       localStorage.setItem('arkagentic_user_id', user.id);
-      
-      // Also cache the full user data for immediate use
-      localStorage.setItem('arkagentic_user', JSON.stringify(user));
+      localStorage.setItem('arkagentic_session_token', sessionToken);
       
       this.errorText.setText('');
       
@@ -415,7 +427,7 @@ export class CharacterSelectScene extends Scene {
         this.scene.start('town-scene', {
           playerAvatar: selectedChar.key,
           playerName: name,
-          odyseus: user.id,
+          userId: user.id,
           isNewPlayer: true,
         });
       });
@@ -425,14 +437,13 @@ export class CharacterSelectScene extends Scene {
       this.errorText.setText('Connection failed - starting offline...');
       this.errorText.setColor('#ffaa00');
       
-      // Fallback: Store locally and continue anyway
-      const offlineUser = {
-        id: `offline-${Date.now()}`,
-        display_name: name,
-        avatar_sprite: selectedChar.key,
-        is_offline: true,
-      };
-      localStorage.setItem('arkagentic_user', JSON.stringify(offlineUser));
+      // Fallback: Offline mode - store minimal credentials
+      // User will be synced to database when connection is restored
+      const offlineId = `offline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('arkagentic_user_id', offlineId);
+      localStorage.setItem('arkagentic_offline_name', name);
+      localStorage.setItem('arkagentic_offline_avatar', selectedChar.key);
+      // No session token for offline - will need to create account when online
       
       this.time.delayedCall(1500, () => {
         this.cameras.main.fadeOut(500, 0, 0, 0);

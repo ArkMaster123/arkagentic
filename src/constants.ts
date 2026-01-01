@@ -64,3 +64,70 @@ export const MEETING_POINT = {
 
 // API endpoint - use relative path in production, localhost in development
 export const API_BASE_URL = (import.meta as any).env?.DEV ? 'http://localhost:3001' : '/api';
+
+// Jitsi configuration
+// 
+// DEFAULT: Uses public Jitsi servers (free, no setup required)
+// 
+// PUBLIC SERVER OPTIONS:
+// - meet.jit.si          : Official Jitsi server (most reliable)
+// - jitsi.random-redirect.de : Auto-redirects to underutilized servers (load balanced)
+// - meet.init7.net       : Community server (Switzerland, encrypted)
+// 
+// FOR SELF-HOSTING: Set VITE_JITSI_DOMAIN in your .env file
+// Example: VITE_JITSI_DOMAIN=meet.yourdomain.com
+// 
+// See /docs/JITSI_MEET_INTEGRATION_RESEARCH.md for self-hosting setup
+// Minimum requirements: 4 CPU cores, 8GB RAM, valid SSL certificate
+//
+export const JITSI_CONFIG = {
+  // Jitsi server domain
+  // Default: meet.jit.si (official, most reliable for embedding)
+  // Alternative: jitsi.random-redirect.de (load-balanced across public servers)
+  domain: (import.meta as any).env?.VITE_JITSI_DOMAIN || 'meet.jit.si',
+  
+  // Fallback server if primary fails
+  fallbackDomain: 'meet.jit.si',
+  
+  // Container element ID for the iframe
+  containerId: 'jitsi-frame',
+  
+  // Default audio/video settings
+  startWithAudio: true,
+  startWithVideo: false,
+  
+  // Room name prefix to avoid conflicts with other public Jitsi users
+  // This creates unique rooms like: arkagentic-town-square-abc123
+  roomPrefix: 'arkagentic-',
+  
+  // Add random suffix to room names for privacy (recommended for public servers)
+  useRandomRoomSuffix: true,
+  
+  // Enable proximity-based voice chat
+  proximityEnabled: true,
+};
+
+// Proximity chat zones in the town
+// These define areas where players can join voice/video chat
+export const JITSI_ZONES = [
+  {
+    id: 'town-square',
+    roomName: 'town-square',
+    displayName: 'Town Square',
+    trigger: 'onenter' as const,
+    x: 240,  // Center of town
+    y: 200,
+    width: 96,
+    height: 96,
+  },
+  {
+    id: 'meeting-hall',
+    roomName: 'meeting-hall',
+    displayName: 'Meeting Hall',
+    trigger: 'onaction' as const,  // Requires pressing a key to join
+    x: 256,
+    y: 208,
+    width: 64,
+    height: 64,
+  },
+];

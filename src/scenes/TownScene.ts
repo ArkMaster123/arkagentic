@@ -2,9 +2,10 @@ import { Scene, Tilemaps, GameObjects, Physics, Math as PhaserMath } from 'phase
 import { Agent } from '../classes/Agent';
 import { Player } from '../classes/Player';
 import { MultiplayerManager } from '../classes/MultiplayerManager';
+import { JitsiManager, JitsiZone } from '../classes/JitsiManager';
 import eventsCenter from '../classes/EventCenter';
 import { MiniMap } from '../classes/MiniMap';
-import { AGENTS, AGENT_COLORS, MEETING_POINT, COLOR_PRIMARY, COLOR_LIGHT, COLOR_DARK, API_BASE_URL } from '../constants';
+import { AGENTS, AGENT_COLORS, MEETING_POINT, COLOR_PRIMARY, COLOR_LIGHT, COLOR_DARK, API_BASE_URL, JITSI_CONFIG, JITSI_ZONES } from '../constants';
 import { DIRECTION, routeQuery } from '../utils';
 import { getIconSpan } from '../icons';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
@@ -54,6 +55,11 @@ export class TownScene extends Scene {
   // Multiplayer
   private multiplayer: MultiplayerManager | null = null;
   private playerCountText: GameObjects.Text | null = null;
+  
+  // Jitsi proximity chat
+  private jitsiManager: JitsiManager | null = null;
+  private currentJitsiZone: JitsiZone | null = null;
+  private jitsiZones: JitsiZone[] = [];
   
   // Door interaction
   private nearbyDoor: typeof this.buildingZones[0] | null = null;
@@ -111,6 +117,7 @@ export class TownScene extends Scene {
     this.initCamera();
     this.initUI();
     this.initMultiplayer();
+    this.initJitsi();
     
     // Listen for global events
     this.setupEventListeners();
@@ -135,6 +142,12 @@ export class TownScene extends Scene {
       
       // Check for nearby doors
       this.checkDoorProximity();
+      
+      // Check for Jitsi proximity zones
+      this.checkJitsiProximity();
+      
+      // Update proximity audio for other players
+      this.updateProximityAudio();
     }
     
     // Update all agents
@@ -152,6 +165,34 @@ export class TownScene extends Scene {
     if (!this.player?.isMoving) {
       this.handleEdgePanning(delta);
     }
+  }
+  
+  /**
+   * Update proximity-based audio for nearby players
+   * Adjusts volume based on distance to other players
+   */
+  private updateProximityAudio(): void {
+    if (!this.player || !this.jitsiManager || !this.multiplayer) return;
+    
+    // Only update if we're in a Jitsi room
+    if (!this.jitsiManager.isInRoom()) return;
+    
+    // Get all remote players from multiplayer manager
+    const remotePlayers = this.multiplayer.getRemotePlayers();
+    
+    remotePlayers.forEach((remotePlayer: { x: number; y: number; name: string }, sessionId: string) => {
+      const distance = Phaser.Math.Distance.Between(
+        this.player!.x, this.player!.y,
+        remotePlayer.x, remotePlayer.y
+      );
+      
+      // Update Jitsi volume based on proximity
+      this.jitsiManager!.updatePlayerProximity(
+        sessionId,
+        distance,
+        remotePlayer.name
+      );
+    });
   }
   
   private checkDoorProximity(): void {
@@ -497,6 +538,149 @@ export class TownScene extends Scene {
       this.updatePlayerCount();
     } else {
       console.log('[TownScene] Multiplayer offline - playing solo');
+    }
+  }
+  
+  private initJitsi(): void {
+    // Initialize Jitsi manager for proximity voice/video chat
+    this.jitsiManager = new JitsiManager({
+      domain: JITSI_CONFIG.domain,
+      containerId: JITSI_CONFIG.containerId,
+      playerName: this.playerName,
+      startWithAudio: JITSI_CONFIG.startWithAudio,
+      startWithVideo: JITSI_CONFIG.startWithVideo,
+    });
+    
+    // Load zones from config
+    this.jitsiZones = JITSI_ZONES.map(zone => ({
+      ...zone,
+      roomName: `${JITSI_CONFIG.roomPrefix}${zone.roomName}`,
+    }));
+    
+    // Set up event listeners
+    this.jitsiManager.on('joined', (data) => {
+      console.log('[TownScene] Joined Jitsi room:', data.roomName);
+      this.updateJitsiUI(true, data.roomName);
+    });
+    
+    this.jitsiManager.on('left', () => {
+      console.log('[TownScene] Left Jitsi room');
+      this.updateJitsiUI(false);
+      this.currentJitsiZone = null;
+    });
+    
+    this.jitsiManager.on('participantJoined', (data) => {
+      // Could show a notification or update UI
+      console.log('[TownScene] Participant joined:', data.displayName);
+    });
+    
+    // Set up UI button handlers
+    this.setupJitsiUIHandlers();
+    
+    console.log('[TownScene] Jitsi initialized with', this.jitsiZones.length, 'zones');
+  }
+  
+  private setupJitsiUIHandlers(): void {
+    // Close button
+    const closeBtn = document.getElementById('jitsi-close');
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        this.jitsiManager?.leaveRoom();
+      };
+    }
+    
+    // Minimize button
+    const minimizeBtn = document.getElementById('jitsi-minimize');
+    if (minimizeBtn) {
+      minimizeBtn.onclick = () => {
+        const container = document.getElementById('jitsi-container');
+        container?.classList.toggle('minimized');
+      };
+    }
+    
+    // Join prompt buttons
+    const joinBtn = document.getElementById('jitsi-prompt-join');
+    if (joinBtn) {
+      joinBtn.onclick = () => {
+        if (this.currentJitsiZone) {
+          this.jitsiManager?.joinRoom(this.currentJitsiZone);
+        }
+        this.hideJitsiPrompt();
+      };
+    }
+    
+    const dismissBtn = document.getElementById('jitsi-prompt-dismiss');
+    if (dismissBtn) {
+      dismissBtn.onclick = () => {
+        this.hideJitsiPrompt();
+      };
+    }
+  }
+  
+  private checkJitsiProximity(): void {
+    if (!this.player || !this.jitsiManager) return;
+    
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+    
+    // Find if player is in any Jitsi zone
+    const inZone = this.jitsiZones.find(zone => 
+      this.jitsiManager!.isInZone(playerX, playerY, zone)
+    );
+    
+    if (inZone && inZone.id !== this.currentJitsiZone?.id) {
+      // Entered a new zone
+      this.currentJitsiZone = inZone;
+      
+      if (inZone.trigger === 'onenter') {
+        // Auto-join
+        this.jitsiManager.enterZone(inZone);
+      } else {
+        // Show prompt
+        this.showJitsiPrompt(inZone);
+      }
+    } else if (!inZone && this.currentJitsiZone) {
+      // Left the zone
+      this.jitsiManager.exitZone(this.currentJitsiZone.id);
+      this.currentJitsiZone = null;
+      this.hideJitsiPrompt();
+    }
+  }
+  
+  private showJitsiPrompt(zone: JitsiZone): void {
+    const prompt = document.getElementById('jitsi-prompt');
+    const title = document.getElementById('jitsi-prompt-title');
+    const desc = document.getElementById('jitsi-prompt-description');
+    
+    if (prompt && title && desc) {
+      title.textContent = `Join ${zone.displayName || 'Video Chat'}`;
+      desc.textContent = 'Press J to join voice chat with nearby players';
+      prompt.classList.add('show');
+    }
+  }
+  
+  private hideJitsiPrompt(): void {
+    const prompt = document.getElementById('jitsi-prompt');
+    prompt?.classList.remove('show');
+  }
+  
+  private updateJitsiUI(inCall: boolean, roomName?: string): void {
+    const container = document.getElementById('jitsi-container');
+    const roomNameEl = document.getElementById('jitsi-room-name');
+    
+    if (container) {
+      if (inCall) {
+        container.classList.add('active');
+      } else {
+        container.classList.remove('active');
+        container.classList.remove('minimized');
+      }
+    }
+    
+    if (roomNameEl && roomName) {
+      // Remove prefix for display
+      const displayName = roomName.replace(JITSI_CONFIG.roomPrefix, '');
+      roomNameEl.textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1).replace(/-/g, ' ');
     }
   }
   
@@ -923,6 +1107,20 @@ export class TownScene extends Scene {
       if (this.nearbyDoor) {
         console.log(`[TownScene] Entering ${this.nearbyDoor.name} via E key`);
         this.enterBuilding(this.nearbyDoor);
+      }
+    });
+    
+    // J key to join/leave Jitsi voice chat
+    this.input.keyboard?.on('keydown-J', () => {
+      if (this.currentJitsiZone && this.jitsiManager) {
+        if (this.jitsiManager.isInRoom()) {
+          // Already in room - leave
+          this.jitsiManager.leaveRoom();
+        } else {
+          // Join the zone
+          this.jitsiManager.joinRoom(this.currentJitsiZone);
+          this.hideJitsiPrompt();
+        }
       }
     });
     

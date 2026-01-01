@@ -68,6 +68,7 @@ class RouteResponse(BaseModel):
 class CreateUserRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=50)
     avatar_sprite: str = "brendan"
+    session_token: Optional[str] = None  # Client-generated session token
 
 
 class UpdateUserRequest(BaseModel):
@@ -81,6 +82,7 @@ class UserResponse(BaseModel):
     avatar_sprite: str
     is_anonymous: bool
     created_at: datetime
+    session_token: Optional[str] = None  # Returned on creation only
 
 
 # =============================================================================
@@ -363,10 +365,17 @@ async def legacy_chat(request: dict):
 
 @app.post("/api/users", response_model=UserResponse)
 async def create_user(request: CreateUserRequest):
-    """Create a new anonymous user."""
+    """Create a new anonymous user with session token."""
+    import secrets
+
     try:
-        user = await db.create_anonymous_user(
-            display_name=request.display_name, avatar_sprite=request.avatar_sprite
+        # Generate session token if not provided
+        session_token = request.session_token or secrets.token_hex(32)
+
+        user = await db.create_user_with_session(
+            display_name=request.display_name,
+            avatar_sprite=request.avatar_sprite,
+            session_token=session_token,
         )
         return UserResponse(
             id=str(user["id"]),
@@ -374,6 +383,7 @@ async def create_user(request: CreateUserRequest):
             avatar_sprite=user["avatar_sprite"],
             is_anonymous=user["is_anonymous"],
             created_at=user["created_at"],
+            session_token=session_token,  # Return token to client
         )
     except Exception as e:
         logger.error(f"Failed to create user: {e}")
@@ -387,6 +397,10 @@ async def get_user(user_id: str):
         user = await db.get_user(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
+
+        # Update last seen
+        await db.update_user_last_seen(user_id)
+
         return UserResponse(
             id=str(user["id"]),
             display_name=user["display_name"],
@@ -399,6 +413,35 @@ async def get_user(user_id: str):
     except Exception as e:
         logger.error(f"Failed to get user: {e}")
         raise HTTPException(status_code=500, detail="Failed to get user")
+
+
+@app.post("/api/auth/validate")
+async def validate_session(
+    user_id: str = Query(...),
+    session_token: str = Query(...),
+):
+    """Validate a session token."""
+    try:
+        is_valid = await db.validate_session(user_id, session_token)
+        if is_valid:
+            await db.refresh_session(user_id, session_token)
+            return {"valid": True, "user_id": user_id}
+        else:
+            return {"valid": False, "user_id": user_id}
+    except Exception as e:
+        logger.error(f"Failed to validate session: {e}")
+        return {"valid": False, "error": str(e)}
+
+
+@app.post("/api/auth/logout")
+async def logout(user_id: str = Query(...)):
+    """Invalidate user session (logout)."""
+    try:
+        await db.invalidate_session(user_id)
+        return {"status": "logged_out", "user_id": user_id}
+    except Exception as e:
+        logger.error(f"Failed to logout: {e}")
+        raise HTTPException(status_code=500, detail="Failed to logout")
 
 
 @app.patch("/api/users/{user_id}", response_model=UserResponse)

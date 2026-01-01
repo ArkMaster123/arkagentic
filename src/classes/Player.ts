@@ -1,4 +1,4 @@
-import { Physics, Scene, Input, Types } from 'phaser';
+import { Physics, Scene, Input, Types, GameObjects } from 'phaser';
 import { Actor } from './Actor';
 
 /**
@@ -14,6 +14,10 @@ export class Player extends Actor {
   public direction: string = 'down';
   public isMoving: boolean = false;
   
+  // Name label above player
+  private nameLabel: GameObjects.Text | null = null;
+  private playerDisplayName: string = 'Player';
+  
   // Callback for position updates (used by multiplayer)
   public onPositionChange?: (x: number, y: number, direction: string, isMoving: boolean, animation: string) => void;
   
@@ -23,22 +27,47 @@ export class Player extends Actor {
   private lastSentDirection: string = 'down';
   private lastSentMoving: boolean = false;
 
-  constructor(scene: Scene, x: number, y: number, texture: string) {
+  constructor(scene: Scene, x: number, y: number, texture: string, displayName: string = 'Player') {
     super(scene, x, y, texture, 0);
     
     this.name = 'player';
+    this.playerDisplayName = displayName;
     this.setScale(1);
     this.getBody().setSize(12, 12);
     this.getBody().setOffset(2, 4);
     
     this.initAnimations();
     this.initInput();
+    this.createNameLabel();
     
     // Start with idle animation
     this.anims.play('player-idle-down', true);
     
     this.lastSentX = x;
     this.lastSentY = y;
+  }
+  
+  private createNameLabel(): void {
+    // Create name label above player
+    this.nameLabel = this.scene.add.text(this.x, this.y - 18, this.playerDisplayName, {
+      fontSize: '8px',
+      color: '#ffffff',
+      backgroundColor: '#000000aa',
+      padding: { x: 3, y: 1 },
+      fontFamily: 'Arial, sans-serif',
+    });
+    this.nameLabel.setOrigin(0.5, 1);
+    this.nameLabel.setDepth(20);
+  }
+  
+  /**
+   * Update the display name
+   */
+  setDisplayName(name: string): void {
+    this.playerDisplayName = name;
+    if (this.nameLabel) {
+      this.nameLabel.setText(name);
+    }
   }
 
   private initInput(): void {
@@ -157,6 +186,11 @@ export class Player extends Actor {
       this.anims.play(`player-walk-${this.direction}`, true);
     } else {
       this.anims.play(`player-idle-${this.direction}`, true);
+    }
+    
+    // Update name label position to follow player
+    if (this.nameLabel) {
+      this.nameLabel.setPosition(this.x, this.y - 18);
     }
 
     // Send position updates if changed significantly

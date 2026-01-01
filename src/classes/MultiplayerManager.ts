@@ -390,4 +390,22 @@ export class MultiplayerManager {
   getPlayerCount(): number {
     return this.remotePlayers.size + (this.isConnected ? 1 : 0);
   }
+  
+  /**
+   * Get all remote players with their positions
+   * Used for proximity-based features like voice chat volume
+   */
+  getRemotePlayers(): Map<string, { x: number; y: number; name: string }> {
+    const players = new Map<string, { x: number; y: number; name: string }>();
+    
+    this.remotePlayers.forEach((sprite, sessionId) => {
+      players.set(sessionId, {
+        x: sprite.x,
+        y: sprite.y,
+        name: sprite.displayNameText?.text || 'Player',
+      });
+    });
+    
+    return players;
+  }
 }

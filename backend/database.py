@@ -455,3 +455,112 @@ async def set_player_offline(user_id: str):
         await conn.execute(
             "UPDATE player_presence SET status = 'offline' WHERE user_id = $1", user_id
         )
+
+
+# =============================================================================
+# SESSION/TOKEN QUERIES
+# =============================================================================
+
+
+async def create_user_with_session(
+    display_name: str, avatar_sprite: str, session_token: str
+) -> Dict[str, Any]:
+    """Create a new anonymous user with a session token."""
+    async with get_connection() as conn:
+        # Create user
+        user = await conn.fetchrow(
+            """
+            INSERT INTO users (display_name, avatar_sprite, is_anonymous)
+            VALUES ($1, $2, true)
+            RETURNING id, display_name, avatar_sprite, is_anonymous, created_at
+            """,
+            display_name,
+            avatar_sprite,
+        )
+
+        # Create presence record with session token
+        await conn.execute(
+            """
+            INSERT INTO player_presence (user_id, session_token, status, connected_at, last_update)
+            VALUES ($1, $2, 'online', NOW(), NOW())
+            ON CONFLICT (user_id) DO UPDATE SET
+                session_token = $2,
+                status = 'online',
+                connected_at = NOW(),
+                last_update = NOW()
+            """,
+            user["id"],
+            session_token,
+        )
+
+        return dict(user)
+
+
+async def validate_session(user_id: str, session_token: str) -> bool:
+    """Validate a session token for a user."""
+    if not user_id or not session_token:
+        return False
+
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT 1 FROM player_presence 
+            WHERE user_id = $1 AND session_token = $2
+            """,
+            user_id,
+            session_token,
+        )
+        return row is not None
+
+
+async def refresh_session(user_id: str, session_token: str) -> bool:
+    """Refresh a session token's last activity time."""
+    async with get_connection() as conn:
+        result = await conn.execute(
+            """
+            UPDATE player_presence 
+            SET last_update = NOW(), status = 'online'
+            WHERE user_id = $1 AND session_token = $2
+            """,
+            user_id,
+            session_token,
+        )
+        return result != "UPDATE 0"
+
+
+async def get_session_token(user_id: str) -> Optional[str]:
+    """Get the current session token for a user (for reconnection)."""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            "SELECT session_token FROM player_presence WHERE user_id = $1",
+            user_id,
+        )
+        return row["session_token"] if row else None
+
+
+async def invalidate_session(user_id: str):
+    """Invalidate all sessions for a user (logout)."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            UPDATE player_presence 
+            SET session_token = NULL, status = 'offline'
+            WHERE user_id = $1
+            """,
+            user_id,
+        )
+
+
+async def cleanup_stale_sessions(days: int = 30):
+    """Remove sessions that haven't been active for X days."""
+    async with get_connection() as conn:
+        result = await conn.execute(
+            """
+            UPDATE player_presence 
+            SET session_token = NULL, status = 'offline'
+            WHERE last_update < NOW() - INTERVAL '%s days'
+              AND status = 'online'
+            """,
+            days,
+        )
+        return result

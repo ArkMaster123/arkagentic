@@ -267,6 +267,24 @@
       text-align: center;
     }
 
+    #game-controls .controls-divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      margin: 0 4px;
+    }
+
+    #game-controls #settings-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #game-controls #settings-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
     #game {
       width: 800px;
       height: 600px;
@@ -526,6 +544,446 @@
 
     #agent-modal-close:hover {
       color: #e94560;
+    }
+
+    /* User Settings Modal */
+    #user-settings-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #user-settings-modal.show {
+      display: flex;
+    }
+
+    #user-settings-content {
+      background: linear-gradient(135deg, #1a1a28 0%, #12121a 100%);
+      border: 2px solid #e94560;
+      border-radius: 16px;
+      padding: 30px;
+      max-width: 450px;
+      width: 90%;
+      position: relative;
+      animation: modalIn 0.3s ease;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    #user-settings-content h3 {
+      font-size: 1.4rem;
+      color: #fff;
+      margin-bottom: 24px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    #user-settings-content h3::before {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e94560' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    #user-settings-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: #666;
+      font-size: 24px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    #user-settings-close:hover {
+      color: #e94560;
+    }
+
+    .settings-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .settings-group {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .settings-group h4 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #e94560;
+      margin-bottom: 14px;
+    }
+
+    .form-row {
+      margin-bottom: 14px;
+    }
+
+    .form-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-row label {
+      display: block;
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+
+    .form-row input[type="text"] {
+      width: 100%;
+      background: #0d0d14;
+      border: 1px solid #2a2a3e;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-row input[type="text"]:focus {
+      border-color: #e94560;
+    }
+
+    .form-row input[type="text"]::placeholder {
+      color: #555;
+    }
+
+    .avatar-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .avatar-option {
+      width: 48px;
+      height: 48px;
+      background: #0d0d14;
+      border: 2px solid #2a2a3e;
+      border-radius: 10px;
+      cursor: pointer;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .avatar-option:hover {
+      border-color: #e94560;
+      transform: scale(1.05);
+    }
+
+    .avatar-option.selected {
+      border-color: #e94560;
+      box-shadow: 0 0 12px rgba(233, 69, 96, 0.4);
+    }
+
+    .avatar-option img {
+      width: 32px;
+      height: 40px;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      object-fit: none;
+      object-position: 0 0;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #1a1a28;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    .info-value {
+      font-size: 0.85rem;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+    }
+
+    .settings-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 10px;
+    }
+
+    .settings-actions button {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .settings-actions .btn-primary {
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      color: white;
+    }
+
+    .settings-actions .btn-primary:hover {
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+    }
+
+    .settings-actions .btn-secondary {
+      background: #2a2a3e;
+      color: #aaa;
+    }
+
+    .settings-actions .btn-secondary:hover {
+      background: #3a3a4e;
+      color: #fff;
+    }
+
+    .settings-actions button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Jitsi Video Chat Container */
+    #jitsi-container {
+      position: fixed;
+      right: 360px; /* After right sidebar (340px) + gap */
+      top: 20px;
+      width: 380px;
+      height: 320px;
+      background: #12121a;
+      border: 2px solid #2a2a3e;
+      border-radius: 12px;
+      z-index: 500;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    #jitsi-container.active {
+      display: flex;
+    }
+
+    #jitsi-container.minimized {
+      width: 200px;
+      height: 40px;
+    }
+
+    #jitsi-container.minimized #jitsi-frame {
+      display: none;
+    }
+
+    #jitsi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #1a1a28 0%, #12121a 100%);
+      border-bottom: 1px solid #2a2a3e;
+      cursor: move;
+    }
+
+    #jitsi-room-name {
+      font-size: 0.85rem;
+      color: #fff;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #jitsi-room-name::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: #27ae60;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    #jitsi-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    #jitsi-controls button {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 6px;
+      background: #2a2a3e;
+      color: #aaa;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    #jitsi-controls button:hover {
+      background: #3a3a4e;
+      color: #fff;
+    }
+
+    #jitsi-close:hover {
+      background: #e94560 !important;
+      color: #fff !important;
+    }
+
+    #jitsi-frame {
+      flex: 1;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    #jitsi-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* Jitsi Join Prompt */
+    #jitsi-prompt {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: linear-gradient(135deg, #1a1a28 0%, #12121a 100%);
+      border: 2px solid #e94560;
+      border-radius: 16px;
+      padding: 20px 30px;
+      z-index: 600;
+      display: none;
+      box-shadow: 0 8px 32px rgba(233, 69, 96, 0.3);
+      animation: promptSlideIn 0.3s ease forwards;
+    }
+
+    #jitsi-prompt.show {
+      display: block;
+    }
+
+    @keyframes promptSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    #jitsi-prompt-content {
+      text-align: center;
+    }
+
+    #jitsi-prompt-icon {
+      margin-bottom: 12px;
+      color: #e94560;
+    }
+
+    #jitsi-prompt-title {
+      font-size: 1.1rem;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    #jitsi-prompt-description {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 16px;
+    }
+
+    #jitsi-prompt-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    #jitsi-prompt-buttons button {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    #jitsi-prompt-buttons .btn-primary {
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      color: white;
+    }
+
+    #jitsi-prompt-buttons .btn-primary:hover {
+      box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+    }
+
+    #jitsi-prompt-buttons .btn-secondary {
+      background: #2a2a3e;
+      color: #aaa;
+    }
+
+    #jitsi-prompt-buttons .btn-secondary:hover {
+      background: #3a3a4e;
+      color: #fff;
+    }
+
+    /* Proximity indicator in game */
+    .proximity-indicator {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      z-index: 200;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .proximity-indicator.show {
+      display: flex;
+    }
+
+    .proximity-indicator .dot {
+      width: 8px;
+      height: 8px;
+      background: #27ae60;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
     }
 
     #agent-modal-sprite {
@@ -938,11 +1396,18 @@
 
     <!-- Center - Game Area -->
     <div id="game-area">
-      <div id="game-controls">
-        <button id="zoom-out">-</button>
-        <span id="zoom-level">2x</span>
-        <button id="zoom-in">+</button>
-      </div>
+    <div id="game-controls">
+      <button id="zoom-out">-</button>
+      <span id="zoom-level">2x</span>
+      <button id="zoom-in">+</button>
+      <div class="controls-divider"></div>
+      <button id="settings-btn" title="User Settings">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </div>
       <div id="game"></div>
     </div>
 
@@ -974,6 +1439,117 @@
         <span></span>
         <span></span>
         <span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jitsi Video Chat Container -->
+  <div id="jitsi-container">
+    <div id="jitsi-header">
+      <span id="jitsi-room-name">Video Chat</span>
+      <div id="jitsi-controls">
+        <button id="jitsi-minimize" title="Minimize">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+          </svg>
+        </button>
+        <button id="jitsi-close" title="Leave Call">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="jitsi-frame"></div>
+  </div>
+
+  <!-- Jitsi Join Prompt (for onaction zones) -->
+  <div id="jitsi-prompt">
+    <div id="jitsi-prompt-content">
+      <div id="jitsi-prompt-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m22 8-6 4 6 4V8Z"/>
+          <rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
+        </svg>
+      </div>
+      <h4 id="jitsi-prompt-title">Join Video Chat</h4>
+      <p id="jitsi-prompt-description">Other players are nearby. Join the conversation?</p>
+      <div id="jitsi-prompt-buttons">
+        <button id="jitsi-prompt-join" class="btn-primary">Join Call</button>
+        <button id="jitsi-prompt-dismiss" class="btn-secondary">Not Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Settings Modal -->
+  <div id="user-settings-modal">
+    <div id="user-settings-content">
+      <button id="user-settings-close">&times;</button>
+      <h3>User Settings</h3>
+      
+      <div class="settings-form">
+        <!-- Profile Section -->
+        <div class="settings-group">
+          <h4>Profile</h4>
+          
+          <div class="form-row">
+            <label for="settings-display-name">Display Name</label>
+            <input type="text" id="settings-display-name" placeholder="Your name" maxlength="20" />
+          </div>
+          
+          <div class="form-row">
+            <label>Avatar</label>
+            <div class="avatar-picker" id="settings-avatar-picker">
+              <div class="avatar-option" data-avatar="brendan" title="Brendan">
+                <img src="/assets/sprites/brendan.png" alt="Brendan" />
+              </div>
+              <div class="avatar-option" data-avatar="may" title="May">
+                <img src="/assets/sprites/may.png" alt="May" />
+              </div>
+              <div class="avatar-option" data-avatar="joseph" title="Joseph">
+                <img src="/assets/sprites/joseph.png" alt="Joseph" />
+              </div>
+              <div class="avatar-option" data-avatar="archie" title="Archie">
+                <img src="/assets/sprites/archie.png" alt="Archie" />
+              </div>
+              <div class="avatar-option" data-avatar="maxie" title="Maxie">
+                <img src="/assets/sprites/maxie.png" alt="Maxie" />
+              </div>
+              <div class="avatar-option" data-avatar="steven" title="Steven">
+                <img src="/assets/sprites/steven.png" alt="Steven" />
+              </div>
+              <div class="avatar-option" data-avatar="birch" title="Birch">
+                <img src="/assets/sprites/birch.png" alt="Birch" />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Account Info Section -->
+        <div class="settings-group">
+          <h4>Account Info</h4>
+          
+          <div class="info-row">
+            <span class="info-label">User ID</span>
+            <span class="info-value" id="settings-user-id">-</span>
+          </div>
+          
+          <div class="info-row">
+            <span class="info-label">Joined</span>
+            <span class="info-value" id="settings-joined-date">-</span>
+          </div>
+          
+          <div class="info-row">
+            <span class="info-label">Last Login</span>
+            <span class="info-value" id="settings-last-login">-</span>
+          </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="settings-actions">
+          <button id="settings-save" class="btn-primary">Save Changes</button>
+          <button id="settings-reset" class="btn-secondary">Reset Character</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1188,6 +1764,244 @@
           status.classList.remove('busy');
         }
       }
+    };
+
+    // ==========================================
+    // User Settings Modal
+    // ==========================================
+    
+    let currentUserSettings = {
+      id: null,
+      display_name: 'Player',
+      avatar_sprite: 'brendan',
+      created_at: null,
+      last_seen_at: null
+    };
+
+    // Load user data from DATABASE (not localStorage)
+    async function loadUserSettings() {
+      const userId = localStorage.getItem('arkagentic_user_id');
+      const sessionToken = localStorage.getItem('arkagentic_session_token');
+      
+      if (!userId) {
+        return currentUserSettings;
+      }
+      
+      // Check if offline user
+      if (userId.startsWith('offline-')) {
+        const offlineName = localStorage.getItem('arkagentic_offline_name');
+        const offlineAvatar = localStorage.getItem('arkagentic_offline_avatar');
+        currentUserSettings = {
+          id: userId,
+          display_name: offlineName || 'Player',
+          avatar_sprite: offlineAvatar || 'brendan',
+          created_at: null,
+          last_seen_at: null
+        };
+        return currentUserSettings;
+      }
+      
+      try {
+        // Fetch fresh data from database
+        const response = await fetch(`/api/users/${userId}`);
+        if (response.ok) {
+          const user = await response.json();
+          currentUserSettings = {
+            id: user.id,
+            display_name: user.display_name || 'Player',
+            avatar_sprite: user.avatar_sprite || 'brendan',
+            created_at: user.created_at || null,
+            last_seen_at: user.last_seen_at || null
+          };
+        }
+      } catch (e) {
+        console.error('Failed to fetch user settings from database:', e);
+      }
+      
+      return currentUserSettings;
+    }
+
+    // Update the settings modal UI with current values
+    async function updateSettingsUI() {
+      const settings = await loadUserSettings();
+      
+      // Display name
+      document.getElementById('settings-display-name').value = settings.display_name || '';
+      
+      // Avatar selection
+      document.querySelectorAll('.avatar-option').forEach(opt => {
+        opt.classList.remove('selected');
+        if (opt.dataset.avatar === settings.avatar_sprite) {
+          opt.classList.add('selected');
+        }
+      });
+      
+      // Account info
+      document.getElementById('settings-user-id').textContent = 
+        settings.id ? settings.id.substring(0, 8) + '...' : 'Not logged in';
+      
+      document.getElementById('settings-joined-date').textContent = 
+        settings.created_at ? new Date(settings.created_at).toLocaleDateString() : '-';
+      
+      document.getElementById('settings-last-login').textContent = 
+        settings.last_seen_at ? new Date(settings.last_seen_at).toLocaleString() : 'Now';
+    }
+
+    // Save user settings to DATABASE
+    async function saveUserSettings() {
+      const displayName = document.getElementById('settings-display-name').value.trim();
+      const selectedAvatar = document.querySelector('.avatar-option.selected');
+      const avatarSprite = selectedAvatar ? selectedAvatar.dataset.avatar : 'brendan';
+      
+      if (!displayName) {
+        alert('Please enter a display name');
+        return;
+      }
+      
+      const userId = localStorage.getItem('arkagentic_user_id');
+      const sessionToken = localStorage.getItem('arkagentic_session_token');
+      
+      if (!userId) {
+        alert('No user session found. Please refresh the page.');
+        return;
+      }
+      
+      const saveBtn = document.getElementById('settings-save');
+      saveBtn.textContent = 'Saving...';
+      saveBtn.disabled = true;
+      
+      try {
+        // Check if offline user - update localStorage only
+        if (userId.startsWith('offline-')) {
+          localStorage.setItem('arkagentic_offline_name', displayName);
+          localStorage.setItem('arkagentic_offline_avatar', avatarSprite);
+          currentUserSettings.display_name = displayName;
+          currentUserSettings.avatar_sprite = avatarSprite;
+        } else {
+          // Online user - update database
+          const response = await fetch(`/api/users/${userId}`, {
+            method: 'PATCH',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionToken}`,
+              'X-User-ID': userId
+            },
+            body: JSON.stringify({
+              display_name: displayName,
+              avatar_sprite: avatarSprite
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to update: ${response.status}`);
+          }
+          
+          const updatedUser = await response.json();
+          currentUserSettings = {
+            id: updatedUser.id,
+            display_name: updatedUser.display_name,
+            avatar_sprite: updatedUser.avatar_sprite,
+            created_at: updatedUser.created_at,
+            last_seen_at: new Date().toISOString()
+          };
+        }
+        
+        // Notify the game about the changes
+        if (window.game && window.game.scene) {
+          const townScene = window.game.scene.getScene('town-scene');
+          if (townScene && townScene.updatePlayerSettings) {
+            townScene.updatePlayerSettings(displayName, avatarSprite);
+          }
+        }
+        
+        // Dispatch custom event for other listeners
+        window.dispatchEvent(new CustomEvent('user-settings-updated', {
+          detail: { displayName, avatarSprite }
+        }));
+        
+        saveBtn.textContent = 'Saved!';
+        setTimeout(() => {
+          saveBtn.textContent = 'Save Changes';
+          saveBtn.disabled = false;
+          document.getElementById('user-settings-modal').classList.remove('show');
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Failed to save settings:', error);
+        saveBtn.textContent = 'Save Changes';
+        saveBtn.disabled = false;
+        alert('Failed to save settings. Please try again.');
+      }
+    }
+
+    // Reset character (logout and go back to character select)
+    async function resetCharacter() {
+      if (confirm('This will log you out and take you back to character selection. Continue?')) {
+        const userId = localStorage.getItem('arkagentic_user_id');
+        
+        // Try to invalidate session on server
+        if (userId && !userId.startsWith('offline-')) {
+          try {
+            await fetch(`/api/auth/logout?user_id=${userId}`, { method: 'POST' });
+          } catch (e) {
+            console.log('Failed to logout on server:', e);
+          }
+        }
+        
+        // Clear all local credentials
+        localStorage.removeItem('arkagentic_user_id');
+        localStorage.removeItem('arkagentic_session_token');
+        localStorage.removeItem('arkagentic_offline_name');
+        localStorage.removeItem('arkagentic_offline_avatar');
+        localStorage.removeItem('arkagentic_user'); // Legacy cleanup
+        
+        window.location.reload();
+      }
+    }
+
+    // Open settings modal
+    document.getElementById('settings-btn').addEventListener('click', () => {
+      updateSettingsUI();
+      document.getElementById('user-settings-modal').classList.add('show');
+    });
+
+    // Close settings modal
+    document.getElementById('user-settings-close').addEventListener('click', () => {
+      document.getElementById('user-settings-modal').classList.remove('show');
+    });
+
+    document.getElementById('user-settings-modal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('user-settings-modal')) {
+        document.getElementById('user-settings-modal').classList.remove('show');
+      }
+    });
+
+    // Avatar selection
+    document.querySelectorAll('.avatar-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        document.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+      });
+    });
+
+    // Save button
+    document.getElementById('settings-save').addEventListener('click', saveUserSettings);
+
+    // Reset button
+    document.getElementById('settings-reset').addEventListener('click', resetCharacter);
+
+    // Close on ESC key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.getElementById('user-settings-modal').classList.remove('show');
+        document.getElementById('agent-modal').classList.remove('show');
+      }
+    });
+
+    // Expose settings functions globally
+    window.openUserSettings = function() {
+      updateSettingsUI();
+      document.getElementById('user-settings-modal').classList.add('show');
     };
   </script>
 </body>

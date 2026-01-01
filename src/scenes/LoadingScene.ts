@@ -102,59 +102,139 @@ export class LoadingScene extends Scene {
   }
 
   async create(): Promise<void> {
-    // Check if user has already created a character
     const userId = localStorage.getItem('arkagentic_user_id');
-    const cachedUser = localStorage.getItem('arkagentic_user');
+    const sessionToken = localStorage.getItem('arkagentic_session_token');
     
-    if (userId) {
-      // Try to fetch user from database
+    // Check for offline mode credentials
+    const offlineName = localStorage.getItem('arkagentic_offline_name');
+    const offlineAvatar = localStorage.getItem('arkagentic_offline_avatar');
+    
+    if (userId && sessionToken) {
+      // We have credentials - validate session and fetch user from DB
       try {
-        const response = await fetch(`/api/users/${userId}`);
+        // Step 1: Validate the session token
+        const validateResponse = await fetch(
+          `/api/auth/validate?user_id=${userId}&session_token=${sessionToken}`,
+          { method: 'POST' }
+        );
+        const validation = await validateResponse.json();
+        
+        if (!validation.valid) {
+          console.warn('[Loading] Session invalid - clearing credentials');
+          this.clearCredentials();
+          this.scene.start('character-select-scene');
+          return;
+        }
+        
+        // Step 2: Fetch fresh user data from database
+        const userResponse = await fetch(`/api/users/${userId}`);
+        if (!userResponse.ok) {
+          console.warn('[Loading] User not found in database');
+          this.clearCredentials();
+          this.scene.start('character-select-scene');
+          return;
+        }
+        
+        const user = await userResponse.json();
+        console.log(`[Loading] Welcome back, ${user.display_name}!`);
+        
+        this.scene.start('town-scene', {
+          playerAvatar: user.avatar_sprite || 'brendan',
+          playerName: user.display_name || 'Player',
+          userId: user.id,
+          sessionToken: sessionToken,
+          isNewPlayer: false,
+        });
+        return;
+        
+      } catch (error) {
+        console.error('[Loading] Failed to validate session:', error);
+        // Network error - could be offline, try to continue with offline mode
+        if (offlineName && offlineAvatar) {
+          console.log('[Loading] Network unavailable - using offline mode');
+          this.scene.start('town-scene', {
+            playerAvatar: offlineAvatar,
+            playerName: offlineName,
+            isNewPlayer: false,
+            isOffline: true,
+          });
+          return;
+        }
+      }
+    }
+    
+    // Check for offline-created user that needs to be synced
+    if (userId?.startsWith('offline-') && offlineName && offlineAvatar) {
+      console.log('[Loading] Offline user found - attempting to sync...');
+      try {
+        // Try to create a real account now that we might be online
+        const sessionToken = this.generateSessionToken();
+        const response = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            display_name: offlineName,
+            avatar_sprite: offlineAvatar,
+            session_token: sessionToken,
+          }),
+        });
+        
         if (response.ok) {
           const user = await response.json();
-          console.log(`[Loading] Welcome back, ${user.display_name}!`);
+          console.log('[Loading] Offline user synced to database:', user.id);
           
-          // Update cache
-          localStorage.setItem('arkagentic_user', JSON.stringify(user));
+          // Update credentials with real user
+          localStorage.setItem('arkagentic_user_id', user.id);
+          localStorage.setItem('arkagentic_session_token', sessionToken);
+          localStorage.removeItem('arkagentic_offline_name');
+          localStorage.removeItem('arkagentic_offline_avatar');
           
           this.scene.start('town-scene', {
-            playerAvatar: user.avatar_sprite || 'brendan',
-            playerName: user.display_name || 'Player',
+            playerAvatar: user.avatar_sprite,
+            playerName: user.display_name,
             userId: user.id,
+            sessionToken: sessionToken,
             isNewPlayer: false,
           });
           return;
         }
       } catch (error) {
-        console.error('[Loading] Failed to fetch user from database:', error);
+        console.log('[Loading] Still offline - continuing in offline mode');
       }
       
-      // Fallback to cached data if API fails
-      if (cachedUser) {
-        const user = JSON.parse(cachedUser);
-        console.log(`[Loading] Using cached data for ${user.display_name}`);
-        this.scene.start('town-scene', {
-          playerAvatar: user.avatar_sprite || 'brendan',
-          playerName: user.display_name || 'Player',
-          userId: user.id,
-          isNewPlayer: false,
-        });
-        return;
-      }
-    } else if (cachedUser) {
-      // Legacy: user data stored but no ID (offline created)
-      const user = JSON.parse(cachedUser);
-      console.log(`[Loading] Using offline user: ${user.display_name}`);
+      // Still offline - continue with offline credentials
       this.scene.start('town-scene', {
-        playerAvatar: user.avatar_sprite || 'brendan',
-        playerName: user.display_name || 'Player',
+        playerAvatar: offlineAvatar,
+        playerName: offlineName,
         isNewPlayer: false,
+        isOffline: true,
       });
       return;
     }
     
-    // New player - show character selection
+    // No valid credentials - show character selection
     console.log('[Loading] New player - showing character select');
     this.scene.start('character-select-scene');
+  }
+  
+  /**
+   * Clear all stored credentials
+   */
+  private clearCredentials(): void {
+    localStorage.removeItem('arkagentic_user_id');
+    localStorage.removeItem('arkagentic_session_token');
+    localStorage.removeItem('arkagentic_offline_name');
+    localStorage.removeItem('arkagentic_offline_avatar');
+    // Also remove legacy cached user data
+    localStorage.removeItem('arkagentic_user');
+  }
+  
+  /**
+   * Generate a secure random session token
+   */
+  private generateSessionToken(): string {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
   }
 }

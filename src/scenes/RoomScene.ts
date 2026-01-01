@@ -3,6 +3,7 @@ import { AGENTS, AGENT_COLORS } from '../constants';
 import { DIRECTION } from '../utils';
 import { getIconSpan } from '../icons';
 import { MiniMap } from '../classes/MiniMap';
+import { Player } from '../classes/Player';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 
@@ -42,6 +43,8 @@ const ROOM_CONFIGS: Record<string, {
 interface RoomData {
   agentType: string;
   fromTown: boolean;
+  playerAvatar?: string;
+  playerName?: string;
 }
 
 export class RoomScene extends Scene {
