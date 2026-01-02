@@ -152,7 +152,7 @@ export class Player extends Actor {
     const isInputFocused = activeElement && (
       activeElement.tagName === 'INPUT' || 
       activeElement.tagName === 'TEXTAREA' || 
-      activeElement.isContentEditable
+      (activeElement instanceof HTMLElement && activeElement.isContentEditable)
     );
     
     // Controls are enabled only if flag is true AND no input is focused

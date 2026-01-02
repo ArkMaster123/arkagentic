@@ -1597,7 +1597,7 @@ export class TownScene extends Scene {
     const isInputFocused = activeElement && (
       activeElement.tagName === 'INPUT' || 
       activeElement.tagName === 'TEXTAREA' || 
-      activeElement.isContentEditable
+      (activeElement instanceof HTMLElement && activeElement.isContentEditable)
     );
     
     // Controls are disabled if flag is false OR if an input is focused

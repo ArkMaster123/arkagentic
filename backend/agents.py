@@ -593,17 +593,25 @@ class AgentOrchestrator:
             result = agent(query)
 
             # Extract response text
-            if hasattr(result, "message") and hasattr(result.message, "content"):
-                # Handle structured response
-                content = result.message.content
-                if isinstance(content, list):
-                    response_text = " ".join(
-                        block.get("text", "")
-                        for block in content
-                        if isinstance(block, dict) and block.get("type") == "text"
-                    )
+            message = getattr(result, "message", None)
+            if message is not None:
+                # Handle structured response - message could be dict-like or object
+                content: Any = (
+                    message.get("content")
+                    if isinstance(message, dict)
+                    else getattr(message, "content", None)
+                )
+                if content is not None:
+                    if isinstance(content, list):
+                        response_text = " ".join(
+                            block.get("text", "")
+                            for block in content
+                            if isinstance(block, dict) and block.get("type") == "text"
+                        )
+                    else:
+                        response_text = str(content)
                 else:
-                    response_text = str(content)
+                    response_text = str(result)
             else:
                 response_text = str(result)
 
