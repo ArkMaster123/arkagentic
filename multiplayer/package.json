@@ -11,9 +11,9 @@
     "start:prod": "NODE_ENV=production node dist/index.js"
   },
   "dependencies": {
-    "@colyseus/core": "^0.15.0",
-    "@colyseus/schema": "^2.0.0",
-    "@colyseus/ws-transport": "^0.15.0",
+    "@colyseus/core": "^0.16.0",
+    "@colyseus/schema": "^3.0.0",
+    "@colyseus/ws-transport": "^0.16.0",
     "dotenv": "^16.3.0"
   },
   "devDependencies": {

@@ -1,10 +1,10 @@
-import { Client, Room } from 'colyseus.js';
+import { Client, Room, getStateCallbacks } from 'colyseus.js';
 import { Scene, GameObjects } from 'phaser';
 
 // Type definitions matching server schema
 interface PlayerState {
   sessionId: string;
-  odyseus: string;
+  userId: string;
   displayName: string;
   avatarSprite: string;
   x: number;
@@ -14,12 +14,9 @@ interface PlayerState {
   animation: string;
   currentRoom: string;
   lastUpdate: number;
-  onChange: (callback: () => void) => void;
 }
 
 interface PlayersMap {
-  onAdd: (callback: (player: PlayerState, sessionId: string) => void) => void;
-  onRemove: (callback: (player: PlayerState, sessionId: string) => void) => void;
   forEach: (callback: (player: PlayerState, sessionId: string) => void) => void;
   get: (sessionId: string) => PlayerState | undefined;
 }
@@ -47,8 +44,10 @@ export class MultiplayerManager {
   private remotePlayers: Map<string, RemotePlayerSprite> = new Map();
   private isConnected: boolean = false;
   
+  // State callbacks helper (Colyseus 0.16+)
+  private $: ReturnType<typeof getStateCallbacks> | null = null;
+  
   // Player info
-  private odyseus: string = '';
   private displayName: string = 'Anonymous';
   private avatarSprite: string = 'brendan';
   private userId: string = '';
@@ -173,10 +172,14 @@ export class MultiplayerManager {
   }
 
   /**
-   * Set up listeners for state changes
+   * Set up listeners for state changes using Colyseus 0.16+ getStateCallbacks API
    */
   private setupStateListeners(): void {
     if (!this.room) return;
+    
+    // Initialize state callbacks helper (Colyseus 0.16+ API for real-time sync)
+    this.$ = getStateCallbacks(this.room);
+    const $ = this.$;
     
     // Process existing players first (in case we joined a room with players already in it)
     this.room.state.players.forEach((player: PlayerState, sessionId: string) => {
@@ -185,16 +188,16 @@ export class MultiplayerManager {
       if (sessionId !== this.room?.sessionId) {
         this.createRemotePlayer(sessionId, player);
         
-        // Listen for position changes on this player
-        player.onChange(() => {
+        // Listen for position changes on this player using $ wrapper
+        $(player).onChange(() => {
           this.updateRemotePlayer(sessionId, player);
         });
       }
     });
     
-    // Listen for NEW player additions using v0.15 API
-    this.room.state.players.onAdd((player: PlayerState, sessionId: string) => {
-      console.log(`[Multiplayer] Player joined: ${player.displayName} (${sessionId})`);
+    // Listen for NEW player additions using Colyseus 0.16+ API
+    ($(this.room.state).players as any).onAdd((player: PlayerState, sessionId: string) => {
+      console.log(`[Multiplayer] Player joined (onAdd): ${player.displayName} (${sessionId})`);
       
       // Don't render ourselves as a remote player
       if (sessionId === this.room?.sessionId) {
@@ -211,15 +214,16 @@ export class MultiplayerManager {
       // Create sprite for remote player
       this.createRemotePlayer(sessionId, player);
       
-      // Listen for position changes on this player
-      player.onChange(() => {
+      // Listen for position/state changes on this player using $ wrapper
+      $(player).onChange(() => {
+        console.log(`[Multiplayer] Player ${player.displayName} moved to (${player.x}, ${player.y})`);
         this.updateRemotePlayer(sessionId, player);
       });
     });
     
     // Listen for player removals
-    this.room.state.players.onRemove((player: PlayerState, sessionId: string) => {
-      console.log(`[Multiplayer] Player left: ${player.displayName} (${sessionId})`);
+    ($(this.room.state).players as any).onRemove((player: PlayerState, sessionId: string) => {
+      console.log(`[Multiplayer] Player left (onRemove): ${player.displayName} (${sessionId})`);
       this.removeRemotePlayer(sessionId);
     });
     
@@ -243,41 +247,9 @@ export class MultiplayerManager {
       }
     });
     
-    // Listen for player joined messages - USE THIS AS PRIMARY WAY TO CREATE PLAYERS
-    // (onAdd may not fire reliably in all cases)
+    // Listen for player joined messages (backup notification)
     this.room.onMessage('playerJoined', (data: any) => {
       console.log(`[Multiplayer] Player joined notification: ${data.displayName} (${data.sessionId})`);
-      
-      // Create the player sprite if we don't have it yet
-      if (data.sessionId && data.sessionId !== this.room?.sessionId && !this.remotePlayers.has(data.sessionId)) {
-        console.log(`[Multiplayer] Creating player from playerJoined message: ${data.displayName}`);
-        
-        // Create a temporary player state object
-        const playerState: PlayerState = {
-          sessionId: data.sessionId,
-          odyseus: '',
-          displayName: data.displayName || 'Player',
-          avatarSprite: data.avatarSprite || 'brendan',
-          x: 384, // Default spawn position
-          y: 280,
-          direction: 'down',
-          isMoving: false,
-          animation: 'idle-down',
-          currentRoom: 'town',
-          lastUpdate: Date.now(),
-          onChange: () => {},
-        };
-        
-        this.createRemotePlayer(data.sessionId, playerState);
-        
-        // Try to get actual player from state and listen for changes
-        const actualPlayer = this.room?.state.players.get(data.sessionId);
-        if (actualPlayer) {
-          actualPlayer.onChange(() => {
-            this.updateRemotePlayer(data.sessionId, actualPlayer);
-          });
-        }
-      }
       
       if ((window as any).addRoomChatMessage) {
         (window as any).addRoomChatMessage('', `${data.displayName} joined the room`, false, true);
