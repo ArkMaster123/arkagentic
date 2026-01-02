@@ -157,6 +157,15 @@ export class TownScene extends Scene {
     }, 500);
   }
 
+  /**
+   * Called when the scene is shut down (transitioning away)
+   * Ensures cleanup happens even if scene.start() is called directly
+   */
+  shutdown(): void {
+    console.log('[TownScene] Scene shutting down');
+    this.cleanupBeforeSceneChange();
+  }
+
   update(time: number, delta: number): void {
     // Update player
     if (this.player) {
@@ -987,11 +996,40 @@ export class TownScene extends Scene {
   }
   
   /**
+   * Cleanup before transitioning to another scene
+   * This prevents ghost/clone players when returning
+   */
+  private cleanupBeforeSceneChange(): void {
+    console.log('[TownScene] Cleaning up before scene change');
+    
+    // Disconnect multiplayer to prevent ghost players
+    if (this.multiplayer) {
+      this.multiplayer.disconnect();
+      this.multiplayer = null;
+      (window as any).multiplayerManager = null;
+    }
+    
+    // Clean up Jitsi if active
+    if (this.jitsiManager) {
+      this.jitsiManager.leaveRoom();
+    }
+    
+    // Clean up mini-map
+    if (this.miniMap) {
+      this.miniMap.destroy();
+      this.miniMap = null;
+    }
+  }
+
+  /**
    * Enter the meeting rooms area
    */
   private enterMeetingRooms(): void {
     // Disable further input while transitioning
     this.input.enabled = false;
+    
+    // Disconnect multiplayer before scene transition to prevent ghost players
+    this.cleanupBeforeSceneChange();
     
     // Update URL
     window.history.pushState({}, '', '/town/meetings');
@@ -1822,6 +1860,9 @@ export class TownScene extends Scene {
     
     // Disable further input while transitioning
     this.input.enabled = false;
+    
+    // Disconnect multiplayer before scene transition to prevent ghost players
+    this.cleanupBeforeSceneChange();
     
     // Update URL with room route
     const AGENT_TO_ROUTE = (window as any).AGENT_TO_ROUTE || {};

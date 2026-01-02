@@ -129,3 +129,4 @@ If users report browser-specific issues, collect:
 
 **Last Updated**: Based on Phaser 3.80.1 and modern browser versions (2025)
 
+
