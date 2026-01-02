@@ -40,22 +40,22 @@ export class LoadingScene extends Scene {
       percentText.destroy();
     });
 
-    // Load tilemaps
-    this.load.tilemapTiledJSON('town', 'assets/tilemaps/json/town.json');
-    this.load.image('tiles', 'assets/tilemaps/tiles/tileset.png');
+    // Load tilemaps (use absolute paths to work with any route)
+    this.load.tilemapTiledJSON('town', '/assets/tilemaps/json/town.json');
+    this.load.image('tiles', '/assets/tilemaps/tiles/tileset.png');
     
     // Load world map image for mini-map
-    this.load.image('worldmap', 'assets/worldmap.jpg');
+    this.load.image('worldmap', '/assets/worldmap.jpg');
     
     // Load dungeon tileset for rooms (0x72 DungeonTileset II)
-    this.load.image('dungeon-tiles', 'assets/tilemaps/tiles/dungeon/0x72_DungeonTilesetII_v1.7.png');
+    this.load.image('dungeon-tiles', '/assets/tilemaps/tiles/dungeon/0x72_DungeonTilesetII_v1.7.png');
     
     // Load room tilemaps for each agent
-    this.load.tilemapTiledJSON('room-scout', 'assets/tilemaps/json/room-scout.json');
-    this.load.tilemapTiledJSON('room-sage', 'assets/tilemaps/json/room-sage.json');
-    this.load.tilemapTiledJSON('room-chronicle', 'assets/tilemaps/json/room-chronicle.json');
-    this.load.tilemapTiledJSON('room-trends', 'assets/tilemaps/json/room-trends.json');
-    this.load.tilemapTiledJSON('room-maven', 'assets/tilemaps/json/room-maven.json');
+    this.load.tilemapTiledJSON('room-scout', '/assets/tilemaps/json/room-scout.json');
+    this.load.tilemapTiledJSON('room-sage', '/assets/tilemaps/json/room-sage.json');
+    this.load.tilemapTiledJSON('room-chronicle', '/assets/tilemaps/json/room-chronicle.json');
+    this.load.tilemapTiledJSON('room-trends', '/assets/tilemaps/json/room-trends.json');
+    this.load.tilemapTiledJSON('room-maven', '/assets/tilemaps/json/room-maven.json');
 
     // Load all agent sprites (Pokemon-style characters)
     // Sprites are horizontal strips with 12 frames (4 directions x 3 frames each)
@@ -72,7 +72,7 @@ export class LoadingScene extends Scene {
 
     Object.values(AGENTS).forEach((agent) => {
       const size = spriteSizes[agent.sprite] || { width: 16, height: 20 };
-      this.load.spritesheet(agent.sprite, `assets/sprites/${agent.sprite}.png`, {
+      this.load.spritesheet(agent.sprite, `/assets/sprites/${agent.sprite}.png`, {
         frameWidth: size.width,
         frameHeight: size.height,
       });
@@ -93,7 +93,7 @@ export class LoadingScene extends Scene {
     Object.entries(allCharacters).forEach(([key, size]) => {
       // Only load if not already loaded (some may be loaded as agent sprites)
       if (!this.textures.exists(key)) {
-        this.load.spritesheet(key, `assets/sprites/${key}.png`, {
+        this.load.spritesheet(key, `/assets/sprites/${key}.png`, {
           frameWidth: size.width,
           frameHeight: size.height,
         });
