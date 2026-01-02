@@ -93,7 +93,7 @@ export const JITSI_CONFIG = {
   containerId: 'jitsi-frame',
   
   // Default audio/video settings
-  startWithAudio: true,
+  startWithAudio: false,  // Mic muted by default (user can enable manually)
   startWithVideo: false,
   
   // Room name prefix to avoid conflicts with other public Jitsi users
