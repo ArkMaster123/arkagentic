@@ -67,12 +67,10 @@ export const API_BASE_URL = (import.meta as any).env?.DEV ? 'http://localhost:30
 
 // Jitsi configuration
 // 
-// DEFAULT: Uses public Jitsi servers (free, no setup required)
+// DEFAULT: Uses public Jitsi servers (free, no setup required, NO AUTHENTICATION REQUIRED)
 // 
-// PUBLIC SERVER OPTIONS:
-// - meet.jit.si          : Official Jitsi server (most reliable)
-// - jitsi.random-redirect.de : Auto-redirects to underutilized servers (load balanced)
-// - meet.init7.net       : Community server (Switzerland, encrypted)
+// List of free public Jitsi servers that allow anonymous meetings without authentication.
+// The system will try servers in order until one works.
 // 
 // FOR SELF-HOSTING: Set VITE_JITSI_DOMAIN in your .env file
 // Example: VITE_JITSI_DOMAIN=meet.yourdomain.com
@@ -81,12 +79,31 @@ export const API_BASE_URL = (import.meta as any).env?.DEV ? 'http://localhost:30
 // Minimum requirements: 4 CPU cores, 8GB RAM, valid SSL certificate
 //
 export const JITSI_CONFIG = {
-  // Jitsi server domain
-  // Default: meet.jit.si (official, most reliable for embedding)
-  // Alternative: jitsi.random-redirect.de (load-balanced across public servers)
-  domain: (import.meta as any).env?.VITE_JITSI_DOMAIN || 'meet.jit.si',
+  // List of free Jitsi servers to try (in order of preference)
+  // These servers allow anonymous meetings without authentication
+  freeServers: [
+    'fairmeeting.net',              // GDPR compliant, privacy-focused
+    'calls.disroot.org',            // Disroot privacy service
+    'meet.ffmuc.net',               // Freifunk Munich community
+    'meet.systemli.org',            // Systemli privacy service
+    'meet.coredump.ch',              // Swiss server
+    'meet.init7.net',                // Swiss community server
+    'jitsi.riot.im',                 // Matrix/Riot server
+    'meet.nerd.re',                  // Community server
+    'jitsi.hamburg.ccc.de',          // Chaos Computer Club Hamburg
+    'meet.golem.de',                 // Golem.de server
+    'meet.in-berlin.de',             // Berlin community
+    'jitsi.freifunk-duesseldorf.de', // Freifunk Düsseldorf
+    'meet.rexum.space',              // Community server
+    'meet.coredump.ch',              // Swiss server
+    'jitsi.projectsegfau.lt',        // Community server
+  ],
   
-  // Fallback server if primary fails
+  // Jitsi server domain (if set via env, uses that; otherwise tries freeServers list)
+  // Set VITE_JITSI_DOMAIN to use a specific server
+  domain: (import.meta as any).env?.VITE_JITSI_DOMAIN || null,
+  
+  // Fallback server if all free servers fail (meet.jit.si requires auth but is most reliable)
   fallbackDomain: 'meet.jit.si',
   
   // Container element ID for the iframe

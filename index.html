@@ -776,10 +776,13 @@
     /* Jitsi Video Chat Container */
     #jitsi-container {
       position: fixed;
-      right: 360px; /* After right sidebar (340px) + gap */
-      top: 20px;
-      width: 380px;
-      height: 320px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 90vw;
+      height: 85vh;
+      max-width: 1400px;
+      max-height: 900px;
       background: #12121a;
       border: 2px solid #2a2a3e;
       border-radius: 12px;
@@ -798,6 +801,9 @@
     #jitsi-container.minimized {
       width: 200px;
       height: 40px;
+      left: 50%;
+      top: 20px;
+      transform: translateX(-50%);
     }
 
     #jitsi-container.minimized #jitsi-frame {

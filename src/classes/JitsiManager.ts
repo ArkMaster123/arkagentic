@@ -30,8 +30,10 @@ export interface JitsiZone {
 }
 
 export interface JitsiConfig {
-  /** Jitsi server domain (default: meet.jit.si for public, or your self-hosted domain) */
-  domain: string;
+  /** Jitsi server domain (if set, uses this; otherwise tries freeServers list) */
+  domain?: string | null;
+  /** List of free Jitsi servers to try (in order) */
+  freeServers?: string[];
   /** Fallback domain if primary fails */
   fallbackDomain?: string;
   /** Container element ID for the Jitsi iframe */
@@ -62,6 +64,7 @@ export class JitsiManager {
   public config: JitsiConfig;
   private isJitsiLoaded: boolean = false;
   private listeners: Map<string, JitsiEventCallback[]> = new Map();
+  private workingDomain: string | null = null;        // The domain that successfully loaded
   
   // Track if we're in the process of joining/leaving
   private isTransitioning: boolean = false;
@@ -109,6 +112,7 @@ export class JitsiManager {
 
   /**
    * Load the Jitsi external API script
+   * Tries multiple free servers in order until one works
    */
   private async loadJitsiScript(): Promise<void> {
     if (window.JitsiMeetExternalAPI) {
@@ -117,22 +121,63 @@ export class JitsiManager {
     }
 
     return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = `https://${this.config.domain}/external_api.js`;
-      script.async = true;
+      // Get list of servers to try
+      const serversToTry: string[] = [];
       
-      script.onload = () => {
-        this.isJitsiLoaded = true;
-        console.log('[JitsiManager] External API loaded');
-        resolve();
+      // If domain is explicitly set, use that first
+      if (this.config.domain) {
+        serversToTry.push(this.config.domain);
+      } else if ((this.config as any).freeServers && Array.isArray((this.config as any).freeServers)) {
+        // Otherwise try free servers list
+        serversToTry.push(...(this.config as any).freeServers);
+      } else {
+        // Fallback to meet.jit.si
+        serversToTry.push('meet.jit.si');
+      }
+      
+      // Add fallback domain at the end if it's not already in the list
+      if (this.config.fallbackDomain && !serversToTry.includes(this.config.fallbackDomain)) {
+        serversToTry.push(this.config.fallbackDomain);
+      }
+      
+      let currentIndex = 0;
+      
+      const tryLoad = (domain: string) => {
+        const script = document.createElement('script');
+        script.src = `https://${domain}/external_api.js`;
+        script.async = true;
+        
+        script.onload = () => {
+          this.isJitsiLoaded = true;
+          this.workingDomain = domain; // Store the working domain
+          console.log(`[JitsiManager] ✅ External API loaded from ${domain}`);
+          resolve();
+        };
+        
+        script.onerror = () => {
+          console.warn(`[JitsiManager] ❌ Failed to load from ${domain}`);
+          currentIndex++;
+          
+          // Try next server in list
+          if (currentIndex < serversToTry.length) {
+            console.log(`[JitsiManager] Trying next server: ${serversToTry[currentIndex]}`);
+            tryLoad(serversToTry[currentIndex]);
+          } else {
+            console.error('[JitsiManager] Failed to load Jitsi external API from all servers');
+            reject(new Error('Failed to load Jitsi API from any server'));
+          }
+        };
+        
+        document.head.appendChild(script);
       };
       
-      script.onerror = () => {
-        console.error('[JitsiManager] Failed to load Jitsi external API');
-        reject(new Error('Failed to load Jitsi API'));
-      };
-      
-      document.head.appendChild(script);
+      // Start with first server
+      if (serversToTry.length > 0) {
+        console.log(`[JitsiManager] Attempting to load from ${serversToTry[0]}...`);
+        tryLoad(serversToTry[0]);
+      } else {
+        reject(new Error('No Jitsi servers configured'));
+      }
     });
   }
 
@@ -211,8 +256,17 @@ export class JitsiManager {
       // Sanitize room name for URL safety
       const roomName = this.sanitizeRoomName(zone.roomName);
 
+      // Use the working domain (the one that successfully loaded the API)
+      // If not set, fall back to config.domain or first free server
+      const domainToUse = this.workingDomain || 
+                         this.config.domain || 
+                         ((this.config as any).freeServers?.[0]) || 
+                         'meet.jit.si';
+
+      console.log(`[JitsiManager] Creating Jitsi API instance with domain: ${domainToUse}`);
+
       // Create Jitsi API instance
-      this.api = new window.JitsiMeetExternalAPI(this.config.domain, {
+      this.api = new window.JitsiMeetExternalAPI(domainToUse, {
         roomName: roomName,
         parentNode: this.container,
         width: '100%',
@@ -237,6 +291,9 @@ export class JitsiManager {
           disableInviteFunctions: true,
           hideConferenceSubject: false,
           subject: zone.displayName || zone.roomName,
+          // Disable moderator requirement - allow anyone to start meetings
+          requireDisplayName: false,
+          enableNoAudioDetection: false,
           // Disable some features for simpler UX
           disablePolls: true,
           disableReactions: true,
@@ -247,7 +304,11 @@ export class JitsiManager {
           // P2P for small rooms (faster)
           p2p: {
             enabled: true
-          }
+          },
+          // Allow anonymous users to start meetings without moderator
+          enableLayerSuspension: false,
+          // Disable authentication prompts
+          disableThirdPartyRequests: false
         },
 
         // Interface customization

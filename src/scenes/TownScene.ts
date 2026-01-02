@@ -563,7 +563,9 @@ export class TownScene extends Scene {
   private initJitsi(): void {
     // Initialize Jitsi manager for proximity voice/video chat
     this.jitsiManager = new JitsiManager({
-      domain: JITSI_CONFIG.domain,
+      domain: JITSI_CONFIG.domain || undefined,
+      freeServers: (JITSI_CONFIG as any).freeServers,
+      fallbackDomain: JITSI_CONFIG.fallbackDomain,
       containerId: JITSI_CONFIG.containerId,
       playerName: this.playerName,
       startWithAudio: JITSI_CONFIG.startWithAudio,

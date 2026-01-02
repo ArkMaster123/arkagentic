@@ -92,11 +92,23 @@ export class MeetingRoomScene extends Scene {
     if (floorLayer) floorLayer.setDepth(0);
     if (wallsLayer) {
       wallsLayer.setDepth(1);
-      wallsLayer.setCollisionByExclusion([-1, 0]); // Collide with non-empty tiles
+      // Set collision more selectively - only collide with actual wall tiles
+      // Exclude empty tiles (0), invalid tiles (-1), and some edge cases
+      // This allows walking through doorways which are empty tiles (0) in the walls layer
+      wallsLayer.setCollisionByExclusion([-1, 0]);
+      
+      // Additionally, make sure we can walk through any tiles that are 0 or near zone entrances
+      // This is a workaround for tilemaps that might not have perfect doorways
+      wallsLayer.forEachTile((tile) => {
+        if (tile && tile.index === 0) {
+          // Empty tiles are doorways - make sure they're not collidable
+          tile.setCollision(false);
+        }
+      });
     }
     if (furnitureLayer) {
       furnitureLayer.setDepth(2);
-      // Furniture collision for tables
+      // Furniture collision - only collide with actual furniture tiles (not empty)
       furnitureLayer.setCollisionByExclusion([-1, 0]);
     }
 
@@ -134,17 +146,37 @@ export class MeetingRoomScene extends Scene {
 
     this.player = new Player(this, spawnX, spawnY, this.playerAvatar, this.playerName);
     this.player.setDepth(10);
+    
+    // Make player body slightly smaller to fit through doorways easier
+    const playerBody = this.player.getBody();
+    if (playerBody) {
+      playerBody.setSize(10, 10);
+      playerBody.setOffset(3, 5);
+    }
 
     // Add collision with walls and furniture
     const wallsLayer = this.map.getLayer('walls')?.tilemapLayer;
     const furnitureLayer = this.map.getLayer('furniture')?.tilemapLayer;
     
+    // Wall collision - empty tiles (0) in walls layer are doorways
+    // The collision is set to exclude 0 tiles, so doorways should be walkable
     if (wallsLayer) {
       this.physics.add.collider(this.player, wallsLayer);
     }
+    
+    // Furniture collision for tables
     if (furnitureLayer) {
       this.physics.add.collider(this.player, furnitureLayer);
     }
+    
+    // Debug: Log zone positions to verify they're accessible
+    console.log('[MeetingRoomScene] Jitsi zones:', this.jitsiZones.map(z => ({
+      name: z.zone.displayName,
+      x: z.zone.x,
+      y: z.zone.y,
+      width: z.zone.width,
+      height: z.zone.height
+    })));
 
     // Camera follows player
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -223,7 +255,9 @@ export class MeetingRoomScene extends Scene {
 
   private initJitsi(): void {
     this.jitsiManager = new JitsiManager({
-      domain: JITSI_CONFIG.domain,
+      domain: JITSI_CONFIG.domain || undefined,
+      freeServers: (JITSI_CONFIG as any).freeServers,
+      fallbackDomain: JITSI_CONFIG.fallbackDomain,
       containerId: JITSI_CONFIG.containerId,
       playerName: this.playerName,
       startWithAudio: JITSI_CONFIG.startWithAudio,
@@ -413,11 +447,20 @@ export class MeetingRoomScene extends Scene {
         playerY <= zone.y + zone.height
       );
 
+      // Debug logging for zone detection
+      if (zone.displayName === 'Meeting Room Alpha' || zone.displayName === 'Meeting Room Beta' || zone.displayName === 'Main Conference Room') {
+        const distanceX = Math.abs(playerX - (zone.x + zone.width / 2));
+        const distanceY = Math.abs(playerY - (zone.y + zone.height / 2));
+        if (distanceX < 100 && distanceY < 100) {
+          console.log(`[MeetingRoomScene] Player near ${zone.displayName}: player(${playerX.toFixed(1)}, ${playerY.toFixed(1)}), zone(${zone.x}, ${zone.y}) size ${zone.width}x${zone.height}, inside: ${isInside}`);
+        }
+      }
+
       // Update visual indicator
       if (isInside && !zoneObj.isActive) {
         zoneObj.isActive = true;
         this.highlightZone(zoneObj, true);
-        console.log(`[MeetingRoomScene] Entered zone: ${zone.displayName} at (${zone.x}, ${zone.y}) size ${zone.width}x${zone.height}`);
+        console.log(`[MeetingRoomScene] ✅ Entered zone: ${zone.displayName} at (${zone.x}, ${zone.y}) size ${zone.width}x${zone.height}, player at (${playerX.toFixed(1)}, ${playerY.toFixed(1)})`);
       } else if (!isInside && zoneObj.isActive) {
         zoneObj.isActive = false;
         this.highlightZone(zoneObj, false);
@@ -432,7 +475,7 @@ export class MeetingRoomScene extends Scene {
     if (inZone && inZone.zone.id !== this.currentJitsiZone?.id) {
       // Entered a new zone
       this.currentJitsiZone = inZone.zone;
-      console.log(`[MeetingRoomScene] Triggering Jitsi for zone: ${inZone.zone.displayName}, trigger: ${inZone.zone.trigger}`);
+      console.log(`[MeetingRoomScene] 🎯 Triggering Jitsi for zone: ${inZone.zone.displayName}, trigger: ${inZone.zone.trigger}`);
 
       if (inZone.zone.trigger === 'onenter') {
         // Auto-join
