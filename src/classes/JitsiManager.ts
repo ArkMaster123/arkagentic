@@ -57,7 +57,8 @@ type JitsiEventCallback = (data: any) => void;
 export class JitsiManager {
   private api: any = null;
   private currentZone: JitsiZone | null = null;
-  private container: HTMLElement | null = null;
+  private container: HTMLElement | null = null;        // The iframe container (jitsi-frame)
+  private wrapperContainer: HTMLElement | null = null; // The outer wrapper (jitsi-container)
   public config: JitsiConfig;
   private isJitsiLoaded: boolean = false;
   private listeners: Map<string, JitsiEventCallback[]> = new Map();
@@ -80,6 +81,8 @@ export class JitsiManager {
       ...config
     };
     this.container = document.getElementById(config.containerId);
+    // Get the wrapper container (parent of jitsi-frame)
+    this.wrapperContainer = document.getElementById('jitsi-container');
     this.loadJitsiScript();
   }
   
@@ -199,9 +202,11 @@ export class JitsiManager {
     this.isTransitioning = true;
 
     try {
-      // Show container
-      this.container.style.display = 'block';
-      this.container.classList.add('active');
+      // Show the wrapper container (not the iframe container)
+      if (this.wrapperContainer) {
+        this.wrapperContainer.style.display = 'flex';
+        this.wrapperContainer.classList.add('active');
+      }
 
       // Sanitize room name for URL safety
       const roomName = this.sanitizeRoomName(zone.roomName);
@@ -287,8 +292,10 @@ export class JitsiManager {
 
     } catch (error) {
       console.error('[JitsiManager] Failed to join room:', error);
-      this.container.style.display = 'none';
-      this.container.classList.remove('active');
+      if (this.wrapperContainer) {
+        this.wrapperContainer.style.display = 'none';
+        this.wrapperContainer.classList.remove('active');
+      }
     } finally {
       this.isTransitioning = false;
     }
@@ -316,9 +323,10 @@ export class JitsiManager {
       // Clear proximity tracking
       this.clearProximityTracking();
 
-      if (this.container) {
-        this.container.style.display = 'none';
-        this.container.classList.remove('active');
+      // Hide the wrapper container
+      if (this.wrapperContainer) {
+        this.wrapperContainer.style.display = 'none';
+        this.wrapperContainer.classList.remove('active');
       }
 
     } catch (error) {

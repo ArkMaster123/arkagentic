@@ -152,9 +152,16 @@ export class MeetingRoomScene extends Scene {
 
   private setupJitsiZones(): void {
     const objectLayer = this.map.getObjectLayer('objects');
-    if (!objectLayer) return;
+    if (!objectLayer) {
+      console.error('[MeetingRoomScene] No objects layer found in tilemap!');
+      return;
+    }
+
+    console.log(`[MeetingRoomScene] Found ${objectLayer.objects.length} objects in layer`);
 
     objectLayer.objects.forEach((obj) => {
+      console.log(`[MeetingRoomScene] Object: ${obj.name}, type: ${obj.type}`);
+      
       if (obj.type === 'jitsi-zone' && obj.x !== undefined && obj.y !== undefined) {
         // Extract properties
         const roomNameProp = obj.properties?.find((p: any) => p.name === 'roomName');
@@ -172,6 +179,8 @@ export class MeetingRoomScene extends Scene {
           height: obj.height || 64,
         };
 
+        console.log(`[MeetingRoomScene] Created Jitsi zone: ${zone.displayName} at (${zone.x}, ${zone.y}) size ${zone.width}x${zone.height}`);
+
         // Create visual indicator for the zone
         const indicator = this.createZoneIndicator(zone);
         
@@ -183,7 +192,7 @@ export class MeetingRoomScene extends Scene {
       }
     });
 
-    console.log(`[MeetingRoomScene] Set up ${this.jitsiZones.length} Jitsi zones`);
+    console.log(`[MeetingRoomScene] Set up ${this.jitsiZones.length} Jitsi zones total`);
   }
 
   private createZoneIndicator(zone: JitsiZone): GameObjects.Container {
@@ -408,9 +417,11 @@ export class MeetingRoomScene extends Scene {
       if (isInside && !zoneObj.isActive) {
         zoneObj.isActive = true;
         this.highlightZone(zoneObj, true);
+        console.log(`[MeetingRoomScene] Entered zone: ${zone.displayName} at (${zone.x}, ${zone.y}) size ${zone.width}x${zone.height}`);
       } else if (!isInside && zoneObj.isActive) {
         zoneObj.isActive = false;
         this.highlightZone(zoneObj, false);
+        console.log(`[MeetingRoomScene] Left zone: ${zone.displayName}`);
       }
 
       if (isInside) {
@@ -421,9 +432,11 @@ export class MeetingRoomScene extends Scene {
     if (inZone && inZone.zone.id !== this.currentJitsiZone?.id) {
       // Entered a new zone
       this.currentJitsiZone = inZone.zone;
+      console.log(`[MeetingRoomScene] Triggering Jitsi for zone: ${inZone.zone.displayName}, trigger: ${inZone.zone.trigger}`);
 
       if (inZone.zone.trigger === 'onenter') {
         // Auto-join
+        console.log(`[MeetingRoomScene] Auto-joining Jitsi room: ${inZone.zone.roomName}`);
         this.jitsiManager.enterZone(inZone.zone);
       } else {
         // Show prompt
