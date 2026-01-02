@@ -1732,7 +1732,7 @@
           </div>
         </div>
         <div id="chat-input-container">
-          <input type="text" id="chat-input" placeholder="Ask the agents something..." autocomplete="off" />
+          <input type="text" id="chat-input" placeholder="Ask the agents something..." autocomplete="off" maxlength="1000" />
           <button id="chat-send">&#10148;</button>
         </div>
       </div>
@@ -1948,6 +1948,35 @@
         }
       }
     });
+
+    // ==========================================
+    // PREVENT PHASER FROM INTERFERING WITH HTML INPUTS
+    // ==========================================
+    // Best practice: Stop keyboard events from reaching Phaser when inputs are focused
+    // This ensures users can type normally in HTML input fields without interference
+    document.addEventListener('keydown', (e) => {
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' || 
+        activeElement.isContentEditable
+      );
+      
+      // If an input is focused, prevent Phaser from processing this key
+      // by stopping propagation at the document level
+      if (isInputFocused) {
+        // Only stop propagation for non-control keys (letters, numbers, etc.)
+        // Allow control keys like Escape, Tab, etc. to work normally
+        const isControlKey = e.key === 'Escape' || e.key === 'Tab' || 
+                            e.key === 'Enter' || e.key === 'Backspace' ||
+                            e.ctrlKey || e.metaKey || e.altKey;
+        
+        // For text input keys, stop propagation so Phaser doesn't intercept them
+        if (!isControlKey) {
+          e.stopPropagation();
+        }
+      }
+    }, true); // Use capture phase to intercept before Phaser
 
     // Agent data for modal
     const agentData = {

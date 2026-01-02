@@ -147,7 +147,16 @@ export class Player extends Actor {
    * Controls are disabled when user is typing in chat sidebar
    */
   private areControlsEnabled(): boolean {
-    return (window as any).gameControlsEnabled !== false;
+    // Check if an input or textarea is currently focused
+    const activeElement = document.activeElement;
+    const isInputFocused = activeElement && (
+      activeElement.tagName === 'INPUT' || 
+      activeElement.tagName === 'TEXTAREA' || 
+      activeElement.isContentEditable
+    );
+    
+    // Controls are enabled only if flag is true AND no input is focused
+    return (window as any).gameControlsEnabled !== false && !isInputFocused;
   }
 
   update(): void {

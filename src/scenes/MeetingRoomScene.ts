@@ -461,7 +461,16 @@ export class MeetingRoomScene extends Scene {
    * Controls are disabled when user is typing in chat sidebar
    */
   private areControlsDisabled(): boolean {
-    return (window as any).gameControlsEnabled === false;
+    // Check if an input or textarea is currently focused
+    const activeElement = document.activeElement;
+    const isInputFocused = activeElement && (
+      activeElement.tagName === 'INPUT' || 
+      activeElement.tagName === 'TEXTAREA' || 
+      activeElement.isContentEditable
+    );
+    
+    // Controls are disabled if flag is false OR if an input is focused
+    return (window as any).gameControlsEnabled === false || isInputFocused === true;
   }
 
   private setupInput(): void {

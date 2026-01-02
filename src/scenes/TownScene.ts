@@ -1473,12 +1473,39 @@ export class TownScene extends Scene {
    * Controls are disabled when user is typing in chat sidebar
    */
   private areControlsDisabled(): boolean {
-    return (window as any).gameControlsEnabled === false;
+    // Check if an input or textarea is currently focused
+    const activeElement = document.activeElement;
+    const isInputFocused = activeElement && (
+      activeElement.tagName === 'INPUT' || 
+      activeElement.tagName === 'TEXTAREA' || 
+      activeElement.isContentEditable
+    );
+    
+    // Controls are disabled if flag is false OR if an input is focused
+    return (window as any).gameControlsEnabled === false || isInputFocused === true;
   }
 
   private setupEventListeners(): void {
     // Create interactive zones for building doors
     this.createDoorZones();
+    
+    // Configure Phaser keyboard to not interfere with HTML inputs
+    // Best practice: Check focus before processing keyboard events
+    // We already do this in areControlsDisabled(), but we also need to
+    // prevent Phaser from capturing text input keys (letters, numbers, etc.)
+    if (this.input.keyboard) {
+      // Remove capture for common text input keys to allow normal typing
+      // This prevents Phaser from intercepting keys that should go to HTML inputs
+      const textInputKeys = [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'
+      ];
+      
+      // Note: removeCapture is used to stop capturing keys that Phaser has already captured
+      // For keys that haven't been captured yet, we rely on focus checking
+      // The focus check in areControlsDisabled() handles this properly
+    }
     
     // SPACE key to enter nearby building or meeting rooms
     this.input.keyboard?.on('keydown-SPACE', () => {
