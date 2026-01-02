@@ -6,63 +6,101 @@ A real-time multiplayer virtual world where AI agents and human players coexist 
 
 ---
 
-## Architecture Diagram
+> **IMPORTANT - PRODUCTION SERVER EXISTS**
+> 
+> A production server is already running at `46.62.192.79` with auto-deploy from GitHub.
+> 
+> **DO NOT:**
+> - Rebuild or reconfigure the production server
+> - Run database migrations without checking existing state
+> - Overwrite systemd services or nginx config
+> 
+> **The server auto-updates every 5 minutes via cron.** Just push to `main` branch.
+> 
+> SSH: `ssh root@46.62.192.79` | Project: `/opt/agentverse`
+> 
+> This README is for **local development** and **new server deployments only**.
+
+---
+
+## Quick Start
+
+### Option 1: Automated Setup (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/ArkMaster123/arkagentic.git
+cd arkagentic
+
+# Run the setup script
+npm run setup
+
+# Edit .env.local with your API keys (required)
+# Then start all services
+npm run dev:all
+```
+
+Open http://localhost:5173 in your browser.
+
+### Option 2: Docker (Easiest)
+
+```bash
+# Clone and start with Docker
+git clone https://github.com/ArkMaster123/arkagentic.git
+cd arkagentic
+
+# Set your OpenRouter API key
+echo "OPENROUTER_API_KEY=your-key-here" > .env
+
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+Open http://localhost:5173 in your browser.
+
+### Option 3: Manual Setup
+
+See [Manual Installation](#manual-installation) below.
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              ARKAGENTIC SYSTEM                                   │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────────┐    │
-│  │                           FRONTEND (Phaser 3 + TypeScript)               │    │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐  │    │
-│  │  │   TownScene  │  │MeetingRoom   │  │    Player    │  │    Agent    │  │    │
-│  │  │              │  │   Scene      │  │   Controls   │  │   System    │  │    │
-│  │  │  - Tilemap   │  │              │  │              │  │             │  │    │
-│  │  │  - Agents    │  │  - Jitsi     │  │  - WASD/     │  │  - 6 AI     │  │    │
-│  │  │  - Buildings │  │    Zones     │  │    Arrows    │  │    Agents   │  │    │
-│  │  │  - Doors     │  │  - Video     │  │  - C to Chat │  │  - Routing  │  │    │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘  └─────────────┘  │    │
-│  └─────────────────────────────────────────────────────────────────────────┘    │
-│                                        │                                         │
-│                    ┌───────────────────┼───────────────────┐                    │
-│                    │                   │                   │                    │
-│                    ▼                   ▼                   ▼                    │
-│  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐      │
-│  │   SIDEBAR - LEFT    │  │   GAME CANVAS       │  │  SIDEBAR - RIGHT    │      │
-│  │                     │  │                     │  │                     │      │
-│  │  - Agent Cards      │  │   800 x 600 px      │  │  - Chat Tabs        │      │
-│  │  - Click to Select  │  │   Pokemon-style     │  │    - Agent Chat     │      │
-│  │  - Settings         │  │   2D World          │  │    - Room Chat      │      │
-│  │  - Zoom Controls    │  │                     │  │  - Real-time Msgs   │      │
-│  └─────────────────────┘  └─────────────────────┘  └─────────────────────┘      │
-│                                                                                  │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                   BACKEND                                        │
-│                                                                                  │
-│  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐      │
-│  │   Python FastAPI    │  │   Colyseus Server   │  │   PostgreSQL DB     │      │
-│  │   (Port 3001)       │  │   (Port 2567)       │  │   (Port 5432)       │      │
-│  │                     │  │                     │  │                     │      │
-│  │  - /chat endpoint   │  │  - GameRoom         │  │  - agents           │      │
-│  │  - /route endpoint  │  │  - Player sync      │  │  - agent_prompts    │      │
-│  │  - /agents list     │  │  - Chat broadcast   │  │  - rooms            │      │
-│  │  - Strands Agents   │  │  - WebSocket        │  │  - buildings        │      │
-│  │  - OpenRouter LLM   │  │                     │  │  - spawn_points     │      │
-│  └─────────────────────┘  └─────────────────────┘  └─────────────────────┘      │
-│                                                                                  │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                              EXTERNAL SERVICES                                   │
-│                                                                                  │
-│  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐      │
-│  │   OpenRouter API    │  │   Jitsi Meet        │  │   Nginx Reverse     │      │
-│  │                     │  │   (Free Servers)    │  │   Proxy + SSL       │      │
-│  │  - Claude 3 Haiku   │  │                     │  │                     │      │
-│  │  - AI Responses     │  │  - Video Calls      │  │  - HTTPS            │      │
-│  │                     │  │  - Screen Share     │  │  - WebSocket        │      │
-│  └─────────────────────┘  └─────────────────────┘  └─────────────────────┘      │
-│                                                                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+|                        ARKAGENTIC SYSTEM                          |
++------------------------------------------------------------------+
+|                                                                    |
+|  +--------------------+  +------------------+  +----------------+  |
+|  |    FRONTEND        |  |    BACKEND       |  |   MULTIPLAYER  |  |
+|  |    (Phaser 3)      |  |    (FastAPI)     |  |   (Colyseus)   |  |
+|  |    Port 5173       |  |    Port 3001     |  |   Port 2567    |  |
+|  +--------------------+  +------------------+  +----------------+  |
+|           |                      |                     |           |
+|           v                      v                     v           |
+|  +--------------------+  +------------------+  +----------------+  |
+|  |  - Tilemap/World   |  |  - AI Agents     |  |  - Real-time   |  |
+|  |  - Player Controls |  |  - Chat API      |  |    sync        |  |
+|  |  - Agent System    |  |  - Streaming     |  |  - Room Chat   |  |
+|  |  - Chat UI         |  |  - User Settings |  |  - Presence    |  |
+|  +--------------------+  +------------------+  +----------------+  |
+|                                  |                                 |
+|                                  v                                 |
+|                       +------------------+                         |
+|                       |   PostgreSQL     |                         |
+|                       |   Port 5432      |                         |
+|                       +------------------+                         |
+|                                                                    |
++------------------------------------------------------------------+
+|                        EXTERNAL SERVICES                           |
+|  +------------------+  +------------------+  +------------------+  |
+|  |   OpenRouter     |  |   Jitsi Meet     |  |   Nginx (prod)   |  |
+|  |   (AI Models)    |  |   (Video Chat)   |  |   (SSL/Proxy)    |  |
+|  +------------------+  +------------------+  +------------------+  |
++------------------------------------------------------------------+
 ```
 
 ---
@@ -73,50 +111,21 @@ A real-time multiplayer virtual world where AI agents and human players coexist 
 
 Six specialized AI agents, each with unique expertise:
 
-| Agent | Emoji | Role | Expertise |
-|-------|-------|------|-----------|
-| **Scout** | 🔍 | Research Specialist | Company research, people finding, prospect identification |
-| **Sage** | 🧙 | Strategic Analyst | Data analysis, comparisons, strategic recommendations |
-| **Chronicle** | ✍️ | Newsroom Editor | Article writing, news summaries, healthcare content |
-| **Trends** | 📈 | Intelligence Analyst | Trending topics, breaking news, market movements |
-| **Maven** | 👋 | General Assistant | General queries, coordination, friendly help |
-| **Gandalfius** | 🧙‍♂️ | Freelancing Wizard | Pricing strategies, client communication, scope management |
-
-### Interaction Methods
-
-1. **Walk up to an agent** and press **C** to start chatting
-2. **Click on an agent** directly to initiate conversation  
-3. **Select from sidebar** - single click to select, double click for info modal
-4. **Type in chat** - automatically routes to selected or best-fit agent
+| Agent | Role | Expertise |
+|-------|------|-----------|
+| **Scout** | Research Specialist | Company research, people finding, prospect identification |
+| **Sage** | Strategic Analyst | Data analysis, comparisons, strategic recommendations |
+| **Chronicle** | Newsroom Editor | Article writing, news summaries, healthcare content |
+| **Trends** | Intelligence Analyst | Trending topics, breaking news, market movements |
+| **Maven** | General Assistant | General queries, coordination, friendly help |
+| **Gandalfius** | Freelancing Wizard | Pricing strategies, client communication, scope management |
 
 ### Multiplayer Features
 
 - **Real-time player sync** via Colyseus WebSocket server
 - **Room Chat** - text chat with other players in the same room
 - **Chat bubbles** appear above players when they send messages
-- **Player presence** - see who's online and where they are
 - **Video Meeting Rooms** - Jitsi-powered video conferencing
-
-### Meeting Rooms
-
-Walk to the Meeting Rooms area (right side of town) and enter dedicated video chat zones:
-
-| Room | Status | Description |
-|------|--------|-------------|
-| Meeting Room Alpha | ✅ Active | Small meeting room |
-| Meeting Room Beta | ✅ Active | Small meeting room |
-| Main Conference | ✅ Active | Large conference room |
-| Gamma & Delta | 🚧 Maintenance | Under construction |
-
-### Chat System
-
-**Tabbed Interface:**
-- **Agents Tab** - Chat with AI agents
-- **Room Chat Tab** - Chat with other players
-
-**Smart Routing:**
-- Queries automatically route to the most relevant agent
-- Or select a specific agent for direct conversation
 
 ### Controls
 
@@ -128,110 +137,17 @@ Walk to the Meeting Rooms area (right side of town) and enter dedicated video ch
 | **J** | Join/leave Jitsi video call |
 | **ESC** | Exit room / re-enable game controls |
 
-**Focus System:**
-- Click on **chat input** → Game controls disabled (for typing)
-- Click on **game canvas** → Game controls re-enabled
-- Visual indicator shows when game controls are disabled
-
 ---
 
-## Tech Stack
-
-### Frontend
-- **Phaser 3** - 2D game engine
-- **TypeScript** - Type safety
-- **Vite** - Fast dev server and bundler
-- **Colyseus.js** - Multiplayer client
-- **phaser3-rex-plugins** - UI components
-
-### Backend
-- **Python FastAPI** - REST API for AI agents
-- **Strands Agents** - Multi-agent framework
-- **Colyseus** - Real-time multiplayer server
-- **PostgreSQL** - Database
-- **Nginx** - Reverse proxy with SSL
-
-### External Services
-- **OpenRouter** - LLM API (Claude 3 Haiku)
-- **Jitsi Meet** - Free video conferencing
-- **Let's Encrypt** - SSL certificates
-
----
-
-## Project Structure
-
-```
-arkagentic/
-├── public/
-│   └── assets/
-│       ├── sprites/              # Character spritesheets
-│       │   ├── archie.png        # Scout
-│       │   ├── steven.png        # Sage
-│       │   ├── birch.png         # Chronicle
-│       │   ├── maxie.png         # Trends
-│       │   ├── may.png           # Maven
-│       │   ├── joseph.png        # Gandalfius
-│       │   └── brendan.png       # Default player
-│       └── tilemaps/
-│           ├── json/             # Tilemap JSON files
-│           └── tiles/            # Tileset images
-├── src/
-│   ├── classes/
-│   │   ├── Actor.ts              # Base sprite class
-│   │   ├── Agent.ts              # AI agent with pathfinding
-│   │   ├── Player.ts             # Player-controlled character
-│   │   ├── MultiplayerManager.ts # Colyseus client
-│   │   ├── JitsiManager.ts       # Video chat integration
-│   │   └── EventCenter.ts        # Global event bus
-│   ├── scenes/
-│   │   ├── LoadingScene.ts       # Asset preloader
-│   │   ├── CharacterSelectScene.ts # Avatar selection
-│   │   ├── TownScene.ts          # Main game world
-│   │   ├── RoomScene.ts          # Agent rooms
-│   │   └── MeetingRoomScene.ts   # Video meeting rooms
-│   ├── constants.ts              # Agent configs, API URLs
-│   ├── utils.ts                  # Routing logic, helpers
-│   └── index.ts                  # Game entry point
-├── backend/
-│   ├── server.py                 # FastAPI server
-│   ├── agents.py                 # Strands agent definitions
-│   ├── database.py               # PostgreSQL connection
-│   └── requirements.txt          # Python dependencies
-├── multiplayer/
-│   ├── src/
-│   │   ├── rooms/
-│   │   │   ├── GameRoom.ts       # Colyseus room logic
-│   │   │   └── schema/
-│   │   │       └── PlayerState.ts # Player state schema
-│   │   └── index.ts              # Colyseus server entry
-│   └── package.json
-├── database/
-│   ├── schema.sql                # Database schema
-│   ├── seed.sql                  # Initial data
-│   └── migrations/               # Database migrations
-│       ├── 001_add_gandalfius.sql
-│       └── 002_add_meeting_rooms.sql
-├── gandalfius/                   # Gandalfius persona research
-│   ├── JAMIE_BRINDLE_LEARNINGS.md
-│   └── transcripts/
-├── index.html                    # Main HTML with sidebars
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
-```
-
----
-
-## Getting Started
+## Manual Installation
 
 ### Prerequisites
 
-- Node.js 18+
-- Python 3.10+
-- PostgreSQL 16
-- npm or bun
+- **Node.js 18+** - [Download](https://nodejs.org)
+- **Python 3.10+** - [Download](https://python.org)
+- **PostgreSQL 14+** - [Download](https://postgresql.org)
 
-### Installation
+### Step 1: Clone & Install Dependencies
 
 ```bash
 # Clone the repository
@@ -243,9 +159,10 @@ npm install
 
 # Install backend dependencies
 cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+deactivate
 cd ..
 
 # Install multiplayer server dependencies
@@ -254,49 +171,68 @@ npm install
 cd ..
 ```
 
-### Database Setup
+### Step 2: Database Setup
 
 ```bash
-# Create database
-psql -U postgres -c "CREATE DATABASE arkagentic;"
-psql -U postgres -c "CREATE USER arkagentic WITH PASSWORD 'your_password';"
-psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE arkagentic TO arkagentic;"
+# Create PostgreSQL database and user
+psql -U postgres << EOF
+CREATE DATABASE arkagentic;
+CREATE USER arkagentic WITH PASSWORD 'arkagentic';
+GRANT ALL PRIVILEGES ON DATABASE arkagentic TO arkagentic;
+ALTER DATABASE arkagentic OWNER TO arkagentic;
+\c arkagentic
+GRANT ALL ON SCHEMA public TO arkagentic;
+EOF
 
-# Run schema and seed
-psql -U arkagentic -d arkagentic -f database/schema.sql
-psql -U arkagentic -d arkagentic -f database/seed.sql
-
-# Run migrations
-psql -U arkagentic -d arkagentic -f database/migrations/001_add_gandalfius.sql
-psql -U arkagentic -d arkagentic -f database/migrations/002_add_meeting_rooms.sql
+# Initialize database with schema and seed data
+psql -U arkagentic -d arkagentic -f scripts/db-init.sql
 ```
 
-### Environment Variables
+### Step 3: Environment Configuration
 
-Create `.env.local`:
+```bash
+# Copy the example environment file
+cp .env.example .env.local
+
+# Edit .env.local and add your API keys
+```
+
+**Required environment variables:**
 
 ```env
-OPENROUTER_API_KEY=your_openrouter_key
-DATABASE_URL=postgresql://arkagentic:password@localhost:5432/arkagentic
+# OpenRouter API (required for AI agents)
+OPENROUTER_API_KEY=sk-or-v1-xxxxx
+
+# Database connection
+DATABASE_URL=postgresql://arkagentic:arkagentic@localhost:5432/arkagentic
 ```
 
-### Running Locally
+Get your OpenRouter API key from: https://openrouter.ai/keys
+
+### Step 4: Run the Application
+
+**Option A: All services at once (recommended)**
+
+```bash
+npm run dev:all
+```
+
+**Option B: Run services separately**
 
 ```bash
 # Terminal 1: Frontend
 npm run dev
 
 # Terminal 2: Backend API
-cd backend
-source venv/bin/activate
-python server.py
+cd backend && source venv/bin/activate && python server.py
 
 # Terminal 3: Multiplayer server
-cd multiplayer
-npm run dev
+cd multiplayer && npm run dev
 ```
 
-Visit `http://localhost:5173`
+### Step 5: Open in Browser
+
+Visit http://localhost:5173
 
 ---
 
@@ -304,89 +240,274 @@ Visit `http://localhost:5173`
 
 ### Server Requirements
 
-- 4 CPU cores, 8GB RAM minimum
+- 2+ CPU cores, 4GB+ RAM
 - Ubuntu 22.04 LTS recommended
-- Domain with SSL certificate
+- Domain with SSL certificate (for production)
 
-### Production Setup
+### Production Build
 
 ```bash
-# Build frontend
+# Build frontend for production
 npm run build
 
-# Start services with systemd
-sudo systemctl start agentverse-backend
-sudo systemctl start agentverse-multiplayer
-
-# Nginx handles static files and reverse proxy
+# The built files are in ./dist
+# Serve with nginx or any static file server
 ```
 
-### Auto-Deploy
-
-The Finnish server (`46.62.192.79`) runs auto-deploy every 5 minutes via cron:
+### Docker Production Deployment
 
 ```bash
-*/5 * * * * /opt/agentverse/auto-update.sh
+# Build and start all services
+docker-compose up -d --build
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
 ```
+
+### Systemd Services (Linux Server)
+
+Create service files for each component:
+
+**Backend API** (`/etc/systemd/system/arkagentic-backend.service`):
+
+```ini
+[Unit]
+Description=ArkAgentic Backend API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/arkagentic/backend
+Environment=PATH=/opt/arkagentic/backend/venv/bin
+ExecStart=/opt/arkagentic/backend/venv/bin/python server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Multiplayer Server** (`/etc/systemd/system/arkagentic-multiplayer.service`):
+
+```ini
+[Unit]
+Description=ArkAgentic Multiplayer Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/arkagentic/multiplayer
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Enable and start:**
+
+```bash
+sudo systemctl enable arkagentic-backend arkagentic-multiplayer
+sudo systemctl start arkagentic-backend arkagentic-multiplayer
+```
+
+### Nginx Configuration
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    # Frontend (static files)
+    location / {
+        root /opt/arkagentic/dist;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_buffering off;  # Required for SSE streaming
+    }
+
+    # Multiplayer WebSocket
+    location /colyseus/ {
+        proxy_pass http://127.0.0.1:2567/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+```
+
+---
+
+## NPM Scripts Reference
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup` | Run automated setup script |
+| `npm run dev` | Start frontend dev server |
+| `npm run dev:all` | Start all services (frontend + backend + multiplayer) |
+| `npm run build` | Build frontend for production |
+| `npm run backend` | Start backend API |
+| `npm run multiplayer` | Start multiplayer server |
+| `npm run db:init` | Initialize database with schema and seed data |
+| `npm run docker:up` | Start all services with Docker |
+| `npm run docker:down` | Stop Docker services |
+| `npm run docker:logs` | View Docker logs |
 
 ---
 
 ## API Endpoints
 
-### Chat with Agent
+### Chat with Agent (Streaming)
+
 ```bash
-POST /api/chat
+POST /api/chat/stream
+Content-Type: application/json
+
 {
   "message": "How should I price my services?",
-  "agent": "gandalfius"  # Optional - auto-routes if not specified
+  "agent": "gandalfius",
+  "user_id": "optional-user-id"
 }
 ```
 
-### Route Query
+Returns Server-Sent Events (SSE) stream.
+
+### Route Query to Best Agent
+
 ```bash
 POST /api/route
+Content-Type: application/json
+
 {
   "message": "How do I handle scope creep?"
 }
-# Returns: { "agent": "gandalfius", "agent_name": "Gandalfius", "agent_emoji": "🧙‍♂️" }
 ```
 
-### List Agents
+### List Available Agents
+
 ```bash
 GET /api/agents
-# Returns array of all agents with id, name, emoji, role
+```
+
+### List Available AI Models
+
+```bash
+GET /api/models
 ```
 
 ---
 
-## Gandalfius - The Freelancing Wizard
+## Project Structure
 
-Gandalfius is a specialized agent trained on Jamie Brindle's freelancing teachings:
+```
+arkagentic/
++-- public/
+|   +-- assets/
+|       +-- sprites/           # Character spritesheets
+|       +-- tilemaps/          # Tilemap JSON and tilesets
++-- src/
+|   +-- classes/
+|   |   +-- Actor.ts           # Base sprite class
+|   |   +-- Agent.ts           # AI agent with pathfinding
+|   |   +-- Player.ts          # Player-controlled character
+|   |   +-- MultiplayerManager.ts
+|   |   +-- JitsiManager.ts
+|   +-- scenes/
+|   |   +-- LoadingScene.ts
+|   |   +-- CharacterSelectScene.ts
+|   |   +-- TownScene.ts       # Main game world
+|   |   +-- RoomScene.ts
+|   |   +-- MeetingRoomScene.ts
+|   +-- constants.ts
+|   +-- utils.ts
+|   +-- index.ts
++-- backend/
+|   +-- server.py              # FastAPI server
+|   +-- agents.py              # Strands agent definitions
+|   +-- database.py            # PostgreSQL connection
+|   +-- requirements.txt
+|   +-- Dockerfile
++-- multiplayer/
+|   +-- src/
+|   |   +-- rooms/
+|   |   |   +-- GameRoom.ts    # Colyseus room logic
+|   |   +-- index.ts           # Server entry point
+|   +-- package.json
+|   +-- Dockerfile
++-- database/
+|   +-- schema.sql
+|   +-- seed.sql
+|   +-- migrations/
++-- scripts/
+|   +-- setup.sh               # Automated setup script
+|   +-- db-init.sql            # Combined database init
++-- docker-compose.yml
++-- package.json
++-- .env.example
++-- README.md
+```
 
-### Core Philosophy
-> "Transform freelancers (trading time for money) into ENTRELANCERS (owners of predictable, scalable businesses)"
+---
 
-### Key Teachings
+## Troubleshooting
 
-**Pricing Strategies:**
-- "Your rate is your floor, not your headline"
-- "Price for value, not effort"
-- "You're selling outcomes, not hours"
+### "Cannot connect to database"
 
-**Client Communication:**
-- "Speak Client" - talk outcomes, not deliverables
-- The "Magical First Five Minutes" technique
+1. Ensure PostgreSQL is running: `pg_isready`
+2. Check your DATABASE_URL in `.env.local`
+3. Verify the database exists: `psql -l | grep arkagentic`
 
-**Scope Management:**
-- "Scope creep is confusion, not entitlement"
-- "Shrink the deliverable, not your fee"
+### "AI agents not responding"
+
+1. Check your OPENROUTER_API_KEY is valid
+2. Ensure backend is running: `curl http://localhost:3001/api/agents`
+3. Check backend logs for errors
+
+### "Multiplayer not syncing"
+
+1. Ensure multiplayer server is running on port 2567
+2. Check browser console for WebSocket errors
+3. Verify no firewall blocking port 2567
+
+### "Docker containers won't start"
+
+1. Check Docker is running: `docker info`
+2. View logs: `docker-compose logs`
+3. Rebuild: `docker-compose up -d --build`
 
 ---
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Make your changes
 4. Run `npm run build` to verify
 5. Submit a pull request
@@ -404,10 +525,10 @@ MIT License - See LICENSE file
 - Character sprites inspired by Pokemon-style assets
 - Tileset from Modern Interiors pack
 - Jamie Brindle's freelancing wisdom for Gandalfius persona
-- Built with Phaser 3, Colyseus, and Strands Agents
+- Built with Phaser 3, Colyseus, FastAPI, and Strands Agents
 
 ---
 
-**Created:** December 2024  
-**Status:** Active Development  
+**Created:** December 2024
+**Status:** Active Development
 **Maintainer:** [@ArkMaster123](https://github.com/ArkMaster123)

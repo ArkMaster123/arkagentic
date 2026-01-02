@@ -1,0 +1,104 @@
+# ============================================
+# ArkAgentic - Docker Compose Configuration
+# ============================================
+# 
+# Quick Start:
+#   docker-compose up -d
+#
+# This starts all services:
+#   - PostgreSQL database (port 5432)
+#   - Backend API (port 3001)
+#   - Multiplayer server (port 2567)
+#   - Frontend dev server (port 5173)
+#
+# For production, use:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  # ===========================================
+  # PostgreSQL Database
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: arkagentic-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: arkagentic
+      POSTGRES_PASSWORD: arkagentic
+      POSTGRES_DB: arkagentic
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arkagentic -d arkagentic"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Backend API (FastAPI + Python)
+  # ===========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: arkagentic-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://arkagentic:arkagentic@postgres:5432/arkagentic
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - ANTHROPIC_BASE_URL=https://openrouter.ai/api
+      - ANTHROPIC_API_KEY=${OPENROUTER_API_KEY}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_venv:/app/venv
+
+  # ===========================================
+  # Multiplayer Server (Colyseus)
+  # ===========================================
+  multiplayer:
+    build:
+      context: ./multiplayer
+      dockerfile: Dockerfile
+    container_name: arkagentic-multiplayer
+    restart: unless-stopped
+    ports:
+      - "2567:2567"
+    environment:
+      - NODE_ENV=production
+
+  # ===========================================
+  # Frontend (Vite Dev Server)
+  # ===========================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: arkagentic-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+      - VITE_WS_URL=ws://localhost:2567
+      - VITE_JITSI_DOMAIN=meet.jit.si
+    depends_on:
+      - backend
+      - multiplayer
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+
+volumes:
+  postgres_data:
+  backend_venv:
