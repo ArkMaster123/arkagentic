@@ -148,10 +148,9 @@ export class MeetingRoomScene extends Scene {
     this.player.setDepth(10);
     
     // Make player body slightly smaller to fit through doorways easier
-    const playerBody = this.player.getBody();
-    if (playerBody) {
-      playerBody.setSize(10, 10);
-      playerBody.setOffset(3, 5);
+    if (this.player.body) {
+      (this.player.body as Phaser.Physics.Arcade.Body).setSize(10, 10);
+      (this.player.body as Phaser.Physics.Arcade.Body).setOffset(3, 5);
     }
 
     // Add collision with walls and furniture
@@ -256,7 +255,7 @@ export class MeetingRoomScene extends Scene {
   private initJitsi(): void {
     this.jitsiManager = new JitsiManager({
       domain: JITSI_CONFIG.domain || undefined,
-      freeServers: (JITSI_CONFIG as any).freeServers,
+      freeServers: JITSI_CONFIG.freeServers,
       fallbackDomain: JITSI_CONFIG.fallbackDomain,
       containerId: JITSI_CONFIG.containerId,
       playerName: this.playerName,
@@ -386,7 +385,7 @@ export class MeetingRoomScene extends Scene {
     footerBg.setScrollFactor(0);
     footerBg.setDepth(3000);
 
-    this.add.text(400, 585, 'WASD to move  |  Walk into zones to join meetings  |  ESC to exit', {
+    this.add.text(400, 585, 'WASD to move  |  SPACE to join/leave call  |  ESC to exit', {
       fontSize: '11px',
       color: '#888888',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(3001);
@@ -409,7 +408,23 @@ export class MeetingRoomScene extends Scene {
       this.exitRoom();
     });
 
-    // J to manually join/leave Jitsi
+    // SPACE to manually join/leave Jitsi
+    this.input.keyboard?.on('keydown-SPACE', () => {
+      if (this.currentJitsiZone && this.jitsiManager) {
+        if (this.jitsiManager.isInRoom()) {
+          console.log('[MeetingRoomScene] SPACE pressed - leaving Jitsi room');
+          this.jitsiManager.leaveRoom();
+        } else {
+          console.log('[MeetingRoomScene] SPACE pressed - joining Jitsi room:', this.currentJitsiZone.displayName);
+          this.jitsiManager.joinRoom(this.currentJitsiZone);
+          this.hideJitsiPrompt();
+        }
+      } else {
+        console.log('[MeetingRoomScene] SPACE pressed but no zone nearby. currentJitsiZone:', this.currentJitsiZone);
+      }
+    });
+
+    // J as alternative to join/leave Jitsi
     this.input.keyboard?.on('keydown-J', () => {
       if (this.currentJitsiZone && this.jitsiManager) {
         if (this.jitsiManager.isInRoom()) {
