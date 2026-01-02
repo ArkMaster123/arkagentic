@@ -456,14 +456,28 @@ export class MeetingRoomScene extends Scene {
     });
   }
 
+  /**
+   * Check if an HTML input element is currently focused
+   * Used to prevent game input when user is typing in chat
+   */
+  private isInputFocused(): boolean {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+    
+    const tagName = activeElement.tagName.toLowerCase();
+    return tagName === 'input' || tagName === 'textarea' || (activeElement as HTMLElement).isContentEditable;
+  }
+
   private setupInput(): void {
-    // ESC to exit
+    // ESC to exit (allow even when typing - user wants to escape)
     this.input.keyboard?.on('keydown-ESC', () => {
       this.exitRoom();
     });
 
     // SPACE to manually join/leave Jitsi
     this.input.keyboard?.on('keydown-SPACE', () => {
+      if (this.isInputFocused()) return; // Don't trigger when typing
+      
       if (this.currentJitsiZone && this.jitsiManager) {
         if (this.jitsiManager.isInRoom()) {
           console.log('[MeetingRoomScene] SPACE pressed - leaving Jitsi room');
@@ -480,6 +494,8 @@ export class MeetingRoomScene extends Scene {
 
     // J as alternative to join/leave Jitsi
     this.input.keyboard?.on('keydown-J', () => {
+      if (this.isInputFocused()) return; // Don't trigger when typing
+      
       if (this.currentJitsiZone && this.jitsiManager) {
         if (this.jitsiManager.isInRoom()) {
           this.jitsiManager.leaveRoom();

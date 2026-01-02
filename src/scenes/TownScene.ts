@@ -1468,12 +1468,26 @@ export class TownScene extends Scene {
     return text.substring(0, maxLength - 3) + '...';
   }
 
+  /**
+   * Check if an HTML input element is currently focused
+   * Used to prevent game input when user is typing in chat
+   */
+  private isInputFocused(): boolean {
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+    
+    const tagName = activeElement.tagName.toLowerCase();
+    return tagName === 'input' || tagName === 'textarea' || (activeElement as HTMLElement).isContentEditable;
+  }
+
   private setupEventListeners(): void {
     // Create interactive zones for building doors
     this.createDoorZones();
     
     // SPACE key to enter nearby building or meeting rooms
     this.input.keyboard?.on('keydown-SPACE', () => {
+      if (this.isInputFocused()) return; // Don't trigger when typing
+      
       if (this.nearbyDoor) {
         console.log(`[TownScene] Entering ${this.nearbyDoor.name} via SPACE key`);
         this.enterBuilding(this.nearbyDoor);
@@ -1485,6 +1499,8 @@ export class TownScene extends Scene {
     
     // E key as alternative
     this.input.keyboard?.on('keydown-E', () => {
+      if (this.isInputFocused()) return; // Don't trigger when typing
+      
       if (this.nearbyDoor) {
         console.log(`[TownScene] Entering ${this.nearbyDoor.name} via E key`);
         this.enterBuilding(this.nearbyDoor);
@@ -1496,6 +1512,8 @@ export class TownScene extends Scene {
     
     // J key to join/leave Jitsi voice chat
     this.input.keyboard?.on('keydown-J', () => {
+      if (this.isInputFocused()) return; // Don't trigger when typing
+      
       if (this.currentJitsiZone && this.jitsiManager) {
         if (this.jitsiManager.isInRoom()) {
           // Already in room - leave
@@ -1510,6 +1528,8 @@ export class TownScene extends Scene {
     
     // C key to chat with nearby agent
     this.input.keyboard?.on('keydown-C', () => {
+      if (this.isInputFocused()) return; // Don't trigger when typing
+      
       if (this.nearbyAgent) {
         console.log(`[TownScene] Starting chat with ${this.nearbyAgent.type} via C key`);
         this.startAgentChat();
