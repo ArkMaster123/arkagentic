@@ -170,7 +170,39 @@ export class MultiplayerManager {
     // Listen for chat messages
     this.room.onMessage('chat', (data: any) => {
       console.log(`[Chat] ${data.displayName}: ${data.message}`);
-      // TODO: Show chat bubble over player
+      
+      // Don't show our own messages again (we add them optimistically)
+      const isSelf = data.sessionId === this.room?.sessionId;
+      if (!isSelf) {
+        // Add to room chat UI
+        if ((window as any).addRoomChatMessage) {
+          (window as any).addRoomChatMessage(data.displayName, data.message, false);
+        }
+        
+        // Show chat bubble over the player's sprite
+        const sprite = this.remotePlayers.get(data.sessionId);
+        if (sprite) {
+          this.showChatBubble(sprite, data.message);
+        }
+      }
+    });
+    
+    // Listen for player joined messages
+    this.room.onMessage('playerJoined', (data: any) => {
+      console.log(`[Multiplayer] Player joined notification: ${data.displayName}`);
+      if ((window as any).addRoomChatMessage) {
+        (window as any).addRoomChatMessage('', `${data.displayName} joined the room`, false, true);
+      }
+      this.updatePlayerCountUI();
+    });
+    
+    // Listen for player left messages
+    this.room.onMessage('playerLeft', (data: any) => {
+      console.log(`[Multiplayer] Player left notification: ${data.displayName}`);
+      if ((window as any).addRoomChatMessage) {
+        (window as any).addRoomChatMessage('', `${data.displayName} left the room`, false, true);
+      }
+      this.updatePlayerCountUI();
     });
     
     // Handle disconnection
@@ -422,5 +454,47 @@ export class MultiplayerManager {
     });
     
     return players;
+  }
+  
+  /**
+   * Show a chat bubble above a player sprite
+   */
+  private showChatBubble(sprite: RemotePlayerSprite, message: string): void {
+    // Create a temporary text bubble above the player
+    const bubble = this.scene.add.text(
+      sprite.x,
+      sprite.y - 35,
+      message.length > 40 ? message.substring(0, 37) + '...' : message,
+      {
+        fontSize: '9px',
+        color: '#ffffff',
+        backgroundColor: '#1a1a28',
+        padding: { x: 6, y: 4 },
+        wordWrap: { width: 120 },
+      }
+    );
+    bubble.setOrigin(0.5);
+    bubble.setDepth(100);
+    
+    // Animate and remove after delay
+    this.scene.tweens.add({
+      targets: bubble,
+      y: bubble.y - 10,
+      alpha: 0,
+      duration: 4000,
+      ease: 'Power2',
+      onComplete: () => {
+        bubble.destroy();
+      }
+    });
+  }
+  
+  /**
+   * Update the player count in the UI
+   */
+  private updatePlayerCountUI(): void {
+    if ((window as any).updatePlayerCount) {
+      (window as any).updatePlayerCount(this.getPlayerCount());
+    }
   }
 }

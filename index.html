@@ -317,17 +317,86 @@
       position: relative;
     }
 
-    #chat-header {
-      padding: 20px;
+    /* Chat Tabs */
+    #chat-tabs {
+      display: flex;
+      border-bottom: 1px solid #2a2a3e;
+      padding: 0;
+      background: #0d0d14;
+    }
+
+    .chat-tab {
+      flex: 1;
+      padding: 14px 16px;
+      background: transparent;
+      border: none;
+      color: #666;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      border-bottom: 2px solid transparent;
+      position: relative;
+    }
+
+    .chat-tab:hover {
+      color: #aaa;
+      background: rgba(233, 69, 96, 0.05);
+    }
+
+    .chat-tab.active {
+      color: #e94560;
+      border-bottom-color: #e94560;
+      background: rgba(233, 69, 96, 0.1);
+    }
+
+    .chat-tab .tab-icon {
+      font-size: 1rem;
+    }
+
+    .chat-badge {
+      background: #e94560;
+      color: #fff;
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .chat-badge.hidden {
+      display: none;
+    }
+
+    /* Chat Content Areas */
+    .chat-content {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .chat-content.active {
+      display: flex;
+    }
+
+    #chat-header, #room-chat-header {
+      padding: 16px 20px;
       border-bottom: 1px solid #2a2a3e;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
-    #chat-header h2 {
-      font-size: 1.1rem;
+    #chat-header h2, #room-chat-header h2 {
+      font-size: 1rem;
       color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     #chat-status {
@@ -494,6 +563,185 @@
       padding: 40px 20px;
     }
 
+    /* Room Chat Specific Styles */
+    #room-chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    #room-online-count {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #27ae60;
+    }
+
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      background: #27ae60;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    #room-chat-input-container {
+      padding: 16px;
+      border-top: 1px solid #2a2a3e;
+      display: flex;
+      gap: 10px;
+    }
+
+    #room-chat-input {
+      flex: 1;
+      background: #0d0d14;
+      border: 1px solid #2a2a3e;
+      border-radius: 24px;
+      padding: 12px 18px;
+      color: white;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #room-chat-input:focus {
+      border-color: #27ae60;
+    }
+
+    #room-chat-input::placeholder {
+      color: #555;
+    }
+
+    #room-chat-send {
+      background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
+      border: none;
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #room-chat-send:hover {
+      box-shadow: 0 4px 20px rgba(39, 174, 96, 0.4);
+    }
+
+    #room-chat-send:active {
+      transform: scale(0.95);
+    }
+
+    /* Room chat message styling */
+    .room-message {
+      margin-bottom: 12px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .room-message .sender-name {
+      font-size: 0.7rem;
+      color: #27ae60;
+      margin-bottom: 2px;
+      font-weight: 600;
+    }
+
+    .room-message.self .sender-name {
+      color: #e94560;
+      text-align: right;
+    }
+
+    .room-message .message-bubble {
+      background: #1a1a28;
+      color: #eee;
+      display: inline-block;
+      padding: 8px 12px;
+      border-radius: 12px 12px 12px 4px;
+      max-width: 85%;
+      border: 1px solid #2a2a3e;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+
+    .room-message.self {
+      text-align: right;
+    }
+
+    .room-message.self .message-bubble {
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      border: none;
+      border-radius: 12px 12px 4px 12px;
+      color: white;
+    }
+
+    .room-message .message-time {
+      font-size: 0.6rem;
+      color: #444;
+      margin-top: 2px;
+    }
+
+    /* System message in room chat */
+    .room-message.system {
+      text-align: center;
+    }
+
+    .room-message.system .message-bubble {
+      background: transparent;
+      border: none;
+      color: #666;
+      font-size: 0.75rem;
+      font-style: italic;
+    }
+
+    /* Selected agent indicator in chat header */
+    #chat-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #clear-agent-btn {
+      background: transparent;
+      border: 1px solid #e94560;
+      color: #e94560;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    #clear-agent-btn:hover {
+      background: #e94560;
+      color: #fff;
+    }
+
+    .agent-card.chat-selected {
+      border-color: #27ae60;
+      box-shadow: 0 0 12px rgba(39, 174, 96, 0.3);
+    }
+
+    .agent-card.chat-selected::after {
+      content: 'CHATTING';
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: #27ae60;
+      color: #fff;
+      font-size: 0.55rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
 
     /* Agent Detail Modal */
     #agent-modal {
@@ -1421,19 +1669,54 @@
 
     <!-- Right Sidebar - Chat -->
     <div id="right-sidebar">
-      <div id="chat-header">
-        <h2>Agent Chat</h2>
-        <div id="chat-status">Ready</div>
+      <!-- Chat Tabs -->
+      <div id="chat-tabs">
+        <button class="chat-tab active" data-tab="agent">
+          <span class="tab-icon">&#129302;</span> Agents
+        </button>
+        <button class="chat-tab" data-tab="room">
+          <span class="tab-icon">&#128172;</span> Room Chat
+          <span id="room-chat-badge" class="chat-badge hidden">0</span>
+        </button>
       </div>
-      <div id="chat-messages">
-        <div class="welcome-message">
-          <span class="lucide lucide-user"></span>
-          Ask a question and watch the agents collaborate!
+      
+      <!-- Agent Chat Tab Content -->
+      <div id="agent-chat-content" class="chat-content active">
+        <div id="chat-header">
+          <h2 id="chat-title">Agent Chat</h2>
+          <div id="chat-status">Ready</div>
+        </div>
+        <div id="chat-messages">
+          <div class="welcome-message">
+            <span class="lucide lucide-user"></span>
+            Ask a question and watch the agents collaborate!
+          </div>
+        </div>
+        <div id="chat-input-container">
+          <input type="text" id="chat-input" placeholder="Ask the agents something..." autocomplete="off" />
+          <button id="chat-send">&#10148;</button>
         </div>
       </div>
-      <div id="chat-input-container">
-        <input type="text" id="chat-input" placeholder="Ask the agents something..." autocomplete="off" />
-        <button id="chat-send">&#10148;</button>
+      
+      <!-- Room Chat Tab Content -->
+      <div id="room-chat-content" class="chat-content">
+        <div id="room-chat-header">
+          <h2>Room Chat</h2>
+          <div id="room-online-count">
+            <span class="online-dot"></span>
+            <span id="player-count">1</span> online
+          </div>
+        </div>
+        <div id="room-chat-messages">
+          <div class="welcome-message">
+            <span class="lucide lucide-message-circle"></span>
+            Chat with other players in the room!
+          </div>
+        </div>
+        <div id="room-chat-input-container">
+          <input type="text" id="room-chat-input" placeholder="Say something to nearby players..." autocomplete="off" maxlength="200" />
+          <button id="room-chat-send">&#10148;</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1685,19 +1968,142 @@
       document.getElementById('sound-value').textContent = e.target.value + '%';
     });
 
-    // Agent card click handlers
+    // ==========================================
+    // CHAT TABS & AGENT SELECTION
+    // ==========================================
+    
+    let selectedAgent = null; // Currently selected agent for direct chat
+    let activeTab = 'agent';  // Current tab: 'agent' or 'room'
+    let unreadRoomMessages = 0;
+
+    // Tab switching
+    document.querySelectorAll('.chat-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        switchChatTab(tabName);
+      });
+    });
+
+    function switchChatTab(tabName) {
+      activeTab = tabName;
+      
+      // Update tab buttons
+      document.querySelectorAll('.chat-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tabName);
+      });
+      
+      // Update content visibility
+      document.getElementById('agent-chat-content').classList.toggle('active', tabName === 'agent');
+      document.getElementById('room-chat-content').classList.toggle('active', tabName === 'room');
+      
+      // Clear unread badge when switching to room tab
+      if (tabName === 'room') {
+        unreadRoomMessages = 0;
+        updateRoomChatBadge();
+      }
+      
+      // Focus appropriate input
+      if (tabName === 'agent') {
+        document.getElementById('chat-input').focus();
+      } else {
+        document.getElementById('room-chat-input').focus();
+      }
+    }
+
+    function updateRoomChatBadge() {
+      const badge = document.getElementById('room-chat-badge');
+      if (unreadRoomMessages > 0) {
+        badge.textContent = unreadRoomMessages > 99 ? '99+' : unreadRoomMessages;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    // Agent card click handlers - single click to select for chat, double click for modal
     document.querySelectorAll('.agent-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const agentId = card.dataset.agent;
-        const agent = agentData[agentId];
-        if (agent) {
-          showAgentModal(agent);
+      let clickTimeout = null;
+      
+      card.addEventListener('click', (e) => {
+        if (clickTimeout) {
+          // Double click - show modal
+          clearTimeout(clickTimeout);
+          clickTimeout = null;
+          const agentId = card.dataset.agent;
+          const agent = agentData[agentId];
+          if (agent) {
+            showAgentModal(agent, agentId);
+          }
+        } else {
+          // Single click - select agent (wait to confirm not double click)
+          clickTimeout = setTimeout(() => {
+            clickTimeout = null;
+            const agentId = card.dataset.agent;
+            selectAgentForChat(agentId);
+          }, 250);
         }
       });
     });
 
-    // Show agent modal
-    function showAgentModal(agent) {
+    function selectAgentForChat(agentId) {
+      const agent = agentData[agentId];
+      if (!agent) return;
+      
+      // Toggle selection
+      if (selectedAgent === agentId) {
+        clearAgentSelection();
+        return;
+      }
+      
+      selectedAgent = agentId;
+      
+      // Update agent cards visual state
+      document.querySelectorAll('.agent-card').forEach(c => {
+        c.classList.remove('chat-selected');
+        c.style.position = 'relative'; // Needed for ::after pseudo-element
+      });
+      const selectedCard = document.querySelector(`.agent-card[data-agent="${agentId}"]`);
+      if (selectedCard) {
+        selectedCard.classList.add('chat-selected');
+      }
+      
+      // Update chat header
+      const chatTitle = document.getElementById('chat-title');
+      chatTitle.innerHTML = `
+        <span class="${agent.iconClass}" style="color: #e94560;"></span>
+        Chat with ${agent.name}
+        <button id="clear-agent-btn" onclick="clearAgentSelection()">x</button>
+      `;
+      
+      // Update placeholder
+      document.getElementById('chat-input').placeholder = `Ask ${agent.name} something...`;
+      
+      // Switch to agent tab
+      switchChatTab('agent');
+      
+      // Expose selected agent to game
+      window.selectedChatAgent = agentId;
+    }
+
+    function clearAgentSelection() {
+      selectedAgent = null;
+      window.selectedChatAgent = null;
+      
+      // Remove visual selection
+      document.querySelectorAll('.agent-card').forEach(c => {
+        c.classList.remove('chat-selected');
+      });
+      
+      // Reset chat header
+      document.getElementById('chat-title').innerHTML = 'Agent Chat';
+      document.getElementById('chat-input').placeholder = 'Ask the agents something...';
+    }
+    
+    // Expose to window for button onclick
+    window.clearAgentSelection = clearAgentSelection;
+
+    // Show agent modal (for double-click)
+    function showAgentModal(agent, agentId) {
       const modal = document.getElementById('agent-modal');
       document.getElementById('agent-modal-name').innerHTML = '<span class="' + agent.iconClass + '"></span> ' + agent.name;
       document.getElementById('agent-modal-role').textContent = agent.role;
@@ -1728,6 +2134,93 @@
         document.getElementById('agent-modal').classList.remove('show');
       }
     });
+
+    // ==========================================
+    // ROOM CHAT FUNCTIONALITY
+    // ==========================================
+    
+    const roomChatInput = document.getElementById('room-chat-input');
+    const roomChatSend = document.getElementById('room-chat-send');
+    const roomChatMessages = document.getElementById('room-chat-messages');
+
+    // Handle room chat send
+    roomChatSend.addEventListener('click', sendRoomChatMessage);
+    roomChatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendRoomChatMessage();
+      }
+    });
+
+    function sendRoomChatMessage() {
+      const message = roomChatInput.value.trim();
+      if (!message) return;
+      
+      roomChatInput.value = '';
+      
+      // Get display name
+      const user = JSON.parse(localStorage.getItem('arkagentic_user') || '{}');
+      const displayName = user.display_name || 'Player';
+      
+      // Add to local chat immediately (optimistic)
+      addRoomChatMessage(displayName, message, true);
+      
+      // Send via multiplayer manager if available
+      if (window.multiplayerManager && window.multiplayerManager.sendChat) {
+        window.multiplayerManager.sendChat(message);
+      } else {
+        console.log('[RoomChat] Multiplayer not connected, message only shown locally');
+      }
+    }
+
+    function addRoomChatMessage(senderName, message, isSelf = false, isSystem = false) {
+      // Remove welcome message if present
+      const welcome = roomChatMessages.querySelector('.welcome-message');
+      if (welcome) welcome.remove();
+      
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'room-message' + (isSelf ? ' self' : '') + (isSystem ? ' system' : '');
+      
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      if (isSystem) {
+        messageDiv.innerHTML = `
+          <div class="message-bubble">${escapeHtml(message)}</div>
+        `;
+      } else {
+        messageDiv.innerHTML = `
+          <div class="sender-name">${escapeHtml(senderName)}</div>
+          <div class="message-bubble">${escapeHtml(message)}</div>
+          <div class="message-time">${timestamp}</div>
+        `;
+      }
+      
+      roomChatMessages.appendChild(messageDiv);
+      roomChatMessages.scrollTop = roomChatMessages.scrollHeight;
+      
+      // If not on room tab, increment unread count
+      if (activeTab !== 'room' && !isSelf) {
+        unreadRoomMessages++;
+        updateRoomChatBadge();
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Update player count
+    function updatePlayerCount(count) {
+      document.getElementById('player-count').textContent = count;
+    }
+    
+    // Expose functions globally for game integration
+    window.addRoomChatMessage = addRoomChatMessage;
+    window.updatePlayerCount = updatePlayerCount;
+    window.switchChatTab = switchChatTab;
 
     // Retro transition functions
     window.showTransition = function(agentSprite, text, callback) {

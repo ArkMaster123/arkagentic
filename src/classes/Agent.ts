@@ -86,8 +86,24 @@ export class Agent extends Actor {
     this.createNameTag();
     this.listenToEvents();
     
+    // Make agent interactive (clickable)
+    this.setInteractive({ useHandCursor: true });
+    this.on('pointerdown', () => {
+      this.onClicked();
+    });
+    
     // Start wandering after a random delay
     this.scheduleNextWander();
+  }
+  
+  /**
+   * Called when the agent is clicked
+   */
+  private onClicked(): void {
+    console.log(`[Agent] ${this.agentType} clicked`);
+    
+    // Emit event for scene to handle
+    eventsCenter.emit('agent-clicked', { agentType: this.agentType, agent: this });
   }
 
   private createNameTag(): void {

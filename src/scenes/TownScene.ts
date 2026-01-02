@@ -79,6 +79,11 @@ export class TownScene extends Scene {
   private nearMeetingRoomEntrance: boolean = false;
   private meetingRoomPrompt: GameObjects.Container | null = null;
   private meetingRoomSign: GameObjects.Container | null = null;
+  
+  // Nearby agent for chat interaction
+  private nearbyAgent: { type: string; agent: Agent } | null = null;
+  private agentChatPrompt: GameObjects.Container | null = null;
+  private readonly AGENT_CHAT_DISTANCE = 50; // pixels
 
   // Building zones for door detection (pixel coordinates)
   // Based on visible buildings in the tilemap - doors are at bottom of each building
@@ -162,6 +167,9 @@ export class TownScene extends Scene {
       
       // Check for meeting room entrance
       this.checkMeetingRoomProximity();
+      
+      // Check for nearby agents to chat with
+      this.checkAgentProximity();
       
       // Jitsi disabled in town - only available in Meeting Rooms
       // this.checkJitsiProximity();
@@ -500,6 +508,22 @@ export class TownScene extends Scene {
 
     // Set world bounds using tilemap pixel dimensions
     this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    
+    // Listen for agent click events
+    eventsCenter.on('agent-clicked', (data: { agentType: string; agent: Agent }) => {
+      this.onAgentClicked(data.agentType, data.agent);
+    });
+  }
+  
+  /**
+   * Handle when an agent is clicked
+   */
+  private onAgentClicked(agentType: string, agent: Agent): void {
+    console.log(`[TownScene] Agent clicked: ${agentType}`);
+    
+    // Set this agent as the nearby agent and start chat
+    this.nearbyAgent = { type: agentType, agent };
+    this.startAgentChat();
   }
 
   private initPlayer(): void {
@@ -550,12 +574,20 @@ export class TownScene extends Scene {
   private async initMultiplayer(): Promise<void> {
     this.multiplayer = new MultiplayerManager(this);
     
+    // Expose to window for room chat integration
+    (window as any).multiplayerManager = this.multiplayer;
+    
     // Try to connect to multiplayer server
     const connected = await this.multiplayer.connect('town');
     
     if (connected) {
       console.log('[TownScene] Multiplayer connected!');
       this.updatePlayerCount();
+      
+      // Update the room chat player count
+      if ((window as any).updatePlayerCount) {
+        (window as any).updatePlayerCount(this.multiplayer.getPlayerCount());
+      }
     } else {
       console.log('[TownScene] Multiplayer offline - playing solo');
     }
@@ -784,6 +816,169 @@ export class TownScene extends Scene {
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+  }
+  
+  /**
+   * Check if player is near any agent for chat interaction
+   */
+  private checkAgentProximity(): void {
+    if (!this.player) return;
+    
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+    
+    let closestAgentType: string | null = null;
+    let closestAgent: Agent | null = null;
+    let closestDistance = Infinity;
+    
+    // Find the closest agent within chat distance
+    this.agents.forEach((agent, agentType) => {
+      const dx = playerX - agent.x;
+      const dy = playerY - agent.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= this.AGENT_CHAT_DISTANCE && distance < closestDistance) {
+        closestAgentType = agentType;
+        closestAgent = agent;
+        closestDistance = distance;
+      }
+    });
+    
+    // Update nearby agent state
+    const wasNearAgentType = this.nearbyAgent?.type;
+    
+    if (closestAgentType && closestAgent) {
+      // Check if this is a different agent than before
+      if (wasNearAgentType !== closestAgentType) {
+        this.nearbyAgent = { type: closestAgentType, agent: closestAgent };
+        this.updateAgentChatPrompt();
+      }
+    } else if (this.nearbyAgent) {
+      this.nearbyAgent = null;
+      this.updateAgentChatPrompt();
+    }
+  }
+  
+  /**
+   * Show/hide the agent chat prompt
+   */
+  private updateAgentChatPrompt(): void {
+    // Remove existing prompt
+    if (this.agentChatPrompt) {
+      this.agentChatPrompt.destroy();
+      this.agentChatPrompt = null;
+    }
+    
+    if (!this.nearbyAgent) return;
+    
+    const agent = this.nearbyAgent.agent;
+    const agentConfig = AGENTS[this.nearbyAgent.type as keyof typeof AGENTS];
+    
+    // Create prompt above the agent
+    this.agentChatPrompt = this.add.container(agent.x, agent.y - 45);
+    this.agentChatPrompt.setDepth(200);
+    
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.9);
+    bg.fillRoundedRect(-65, -16, 130, 32, 6);
+    bg.lineStyle(2, 0xe94560);
+    bg.strokeRoundedRect(-65, -16, 130, 32, 6);
+    
+    // Key indicator
+    const keyBg = this.add.graphics();
+    keyBg.fillStyle(0xe94560, 1);
+    keyBg.fillRoundedRect(-60, -12, 20, 20, 4);
+    
+    const keyText = this.add.text(-50, -2, 'C', {
+      fontSize: '12px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    
+    // Chat text
+    const text = this.add.text(5, -2, `Chat with ${agentConfig?.name || 'Agent'}`, {
+      fontSize: '10px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    this.agentChatPrompt.add([bg, keyBg, keyText, text]);
+    
+    // Gentle pulse animation
+    this.tweens.add({
+      targets: this.agentChatPrompt,
+      y: agent.y - 48,
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+  
+  /**
+   * Start chatting with the nearby agent
+   */
+  private startAgentChat(): void {
+    if (!this.nearbyAgent) return;
+    
+    const agentType = this.nearbyAgent.type;
+    const agentConfig = AGENTS[agentType as keyof typeof AGENTS];
+    
+    console.log(`[TownScene] Starting chat with ${agentConfig?.name || agentType}`);
+    
+    // Select this agent in the UI
+    if ((window as any).selectAgentForChat) {
+      // Use the function from index.html if available
+      const event = new CustomEvent('selectAgentForChat', { detail: { agentId: agentType } });
+      window.dispatchEvent(event);
+    }
+    
+    // Set the selected agent directly
+    (window as any).selectedChatAgent = agentType;
+    
+    // Update UI to show selected agent
+    const chatTitle = document.getElementById('chat-title');
+    if (chatTitle && agentConfig) {
+      chatTitle.innerHTML = `
+        <span class="${agentConfig.emoji}" style="color: #e94560;"></span>
+        Chat with ${agentConfig.name}
+        <button id="clear-agent-btn" onclick="clearAgentSelection()">x</button>
+      `;
+    }
+    
+    // Update input placeholder
+    const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+    if (chatInput && agentConfig) {
+      chatInput.placeholder = `Ask ${agentConfig.name} something...`;
+    }
+    
+    // Highlight the agent card in the sidebar
+    document.querySelectorAll('.agent-card').forEach(card => {
+      card.classList.remove('chat-selected');
+      if ((card as HTMLElement).dataset.agent === agentType) {
+        card.classList.add('chat-selected');
+      }
+    });
+    
+    // Switch to agent chat tab
+    if ((window as any).switchChatTab) {
+      (window as any).switchChatTab('agent');
+    }
+    
+    // Focus the chat input
+    if (chatInput) {
+      chatInput.focus();
+    }
+    
+    // Have the agent greet the player
+    const agent = this.nearbyAgent.agent;
+    const greetings = [
+      `Hello! How can I help you?`,
+      `Hi there! What would you like to know?`,
+      `Hey! I'm ready to assist.`,
+      `Welcome! Ask me anything.`,
+    ];
+    agent.speak(greetings[Math.floor(Math.random() * greetings.length)]);
   }
   
   /**
@@ -1069,9 +1264,19 @@ export class TownScene extends Scene {
     // Add to conversation history
     this.conversationHistory.push({ role: 'user', content: query });
 
+    // Check if a specific agent is selected in the UI
+    const selectedAgent = (window as any).selectedChatAgent;
+    
     // Route the query to determine which agents should respond
-    const relevantAgents = routeQuery(query);
-    console.log('Routing to agents:', relevantAgents);
+    // If an agent is selected, use that one; otherwise use automatic routing
+    let relevantAgents: string[];
+    if (selectedAgent && AGENTS[selectedAgent as keyof typeof AGENTS]) {
+      relevantAgents = [selectedAgent];
+      console.log(`Using selected agent: ${selectedAgent}`);
+    } else {
+      relevantAgents = routeQuery(query);
+      console.log('Auto-routing to agents:', relevantAgents);
+    }
     
     const mainAgentType = relevantAgents[0];
     const mainAgentConfig = AGENTS[mainAgentType as keyof typeof AGENTS];
@@ -1298,6 +1503,14 @@ export class TownScene extends Scene {
           this.jitsiManager.joinRoom(this.currentJitsiZone);
           this.hideJitsiPrompt();
         }
+      }
+    });
+    
+    // C key to chat with nearby agent
+    this.input.keyboard?.on('keydown-C', () => {
+      if (this.nearbyAgent) {
+        console.log(`[TownScene] Starting chat with ${this.nearbyAgent.type} via C key`);
+        this.startAgentChat();
       }
     });
     
