@@ -178,13 +178,33 @@ export class MultiplayerManager {
   private setupStateListeners(): void {
     if (!this.room) return;
     
-    // Listen for player additions using v0.15 API
+    // Process existing players first (in case we joined a room with players already in it)
+    this.room.state.players.forEach((player: PlayerState, sessionId: string) => {
+      console.log(`[Multiplayer] Existing player found: ${player.displayName} (${sessionId})`);
+      
+      if (sessionId !== this.room?.sessionId) {
+        this.createRemotePlayer(sessionId, player);
+        
+        // Listen for position changes on this player
+        player.onChange(() => {
+          this.updateRemotePlayer(sessionId, player);
+        });
+      }
+    });
+    
+    // Listen for NEW player additions using v0.15 API
     this.room.state.players.onAdd((player: PlayerState, sessionId: string) => {
       console.log(`[Multiplayer] Player joined: ${player.displayName} (${sessionId})`);
       
       // Don't render ourselves as a remote player
       if (sessionId === this.room?.sessionId) {
         console.log('[Multiplayer] Skipping local player');
+        return;
+      }
+      
+      // Skip if we already created this player (from forEach above)
+      if (this.remotePlayers.has(sessionId)) {
+        console.log('[Multiplayer] Player already exists, skipping');
         return;
       }
       
@@ -254,32 +274,52 @@ export class MultiplayerManager {
    * Create a sprite for a remote player
    */
   private createRemotePlayer(sessionId: string, player: PlayerState): void {
+    // Use player position, but if it's 0,0 or default server position, use a reasonable spawn
+    let spawnX = player.x;
+    let spawnY = player.y;
+    
+    // If position is default/unset, spawn near center of town
+    if ((spawnX === 0 && spawnY === 0) || (spawnX === 400 && spawnY === 300)) {
+      spawnX = 384 + Math.random() * 50 - 25; // Random offset near town center
+      spawnY = 280 + Math.random() * 50 - 25;
+    }
+    
+    console.log(`[Multiplayer] Creating remote player sprite: ${player.displayName} at (${spawnX}, ${spawnY}) with avatar ${player.avatarSprite}`);
+    
+    // Check if texture exists
+    if (!this.scene.textures.exists(player.avatarSprite)) {
+      console.warn(`[Multiplayer] Texture ${player.avatarSprite} not found, using brendan`);
+    }
+    
     // Create sprite using the player's avatar
     const sprite = this.scene.add.sprite(
-      player.x,
-      player.y,
-      player.avatarSprite
+      spawnX,
+      spawnY,
+      player.avatarSprite || 'brendan'
     ) as RemotePlayerSprite;
     
     sprite.setScale(1);
-    sprite.setDepth(10);
-    sprite.targetX = player.x;
-    sprite.targetY = player.y;
+    sprite.setDepth(15); // Same depth as local player
+    sprite.targetX = spawnX;
+    sprite.targetY = spawnY;
     
-    // Create name label above player
+    // Create name label above player - make it more visible
     sprite.displayNameText = this.scene.add.text(
-      player.x,
-      player.y - 20,
+      spawnX,
+      spawnY - 24,
       player.displayName,
       {
-        fontSize: '10px',
-        color: '#ffffff',
-        backgroundColor: '#000000aa',
-        padding: { x: 4, y: 2 },
+        fontSize: '11px',
+        color: '#00ff00', // Bright green for visibility
+        backgroundColor: '#000000dd',
+        padding: { x: 6, y: 3 },
+        fontStyle: 'bold',
       }
     );
     sprite.displayNameText.setOrigin(0.5);
-    sprite.displayNameText.setDepth(11);
+    sprite.displayNameText.setDepth(100); // High depth to ensure visibility
+    
+    console.log(`[Multiplayer] Remote player sprite created for ${player.displayName}. Sprite visible: ${sprite.visible}, position: (${sprite.x}, ${sprite.y})`);
     
     this.remotePlayers.set(sessionId, sprite);
     
