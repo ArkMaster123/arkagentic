@@ -578,8 +578,12 @@ export class TownScene extends Scene {
     // Expose to window for room chat integration
     (window as any).multiplayerManager = this.multiplayer;
     
-    // Try to connect to multiplayer server
-    const connected = await this.multiplayer.connect('town');
+    // Try to connect to multiplayer server with player info
+    const connected = await this.multiplayer.connect('town', {
+      displayName: this.playerName,
+      avatarSprite: this.playerAvatar,
+      userId: localStorage.getItem('arkagentic_user_id') || undefined,
+    });
     
     if (connected) {
       console.log('[TownScene] Multiplayer connected!');

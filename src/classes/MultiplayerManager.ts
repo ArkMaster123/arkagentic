@@ -55,6 +55,10 @@ export class MultiplayerManager {
   
   // Interpolation settings
   private interpolationSpeed: number = 0.15;
+  
+  // Heartbeat interval (keep-alive)
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly HEARTBEAT_INTERVAL_MS = 10000; // 10 seconds
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -73,11 +77,20 @@ export class MultiplayerManager {
 
   /**
    * Connect to the multiplayer server
+   * @param roomSlug - The room to join (e.g., 'town')
+   * @param playerInfo - Optional player info (name, avatar) to use instead of localStorage
    */
-  async connect(roomSlug: string = 'town'): Promise<boolean> {
+  async connect(roomSlug: string = 'town', playerInfo?: { displayName?: string; avatarSprite?: string; userId?: string }): Promise<boolean> {
     try {
-      // Load user info from localStorage or create new user
-      await this.loadOrCreateUser();
+      // Use provided player info or load from localStorage
+      if (playerInfo?.displayName) {
+        this.displayName = playerInfo.displayName;
+        this.avatarSprite = playerInfo.avatarSprite || 'brendan';
+        this.userId = playerInfo.userId || `user-${Date.now()}`;
+        console.log(`[Multiplayer] Using provided player info: ${this.displayName}`);
+      } else {
+        await this.loadOrCreateUser();
+      }
       
       console.log(`[Multiplayer] Joining room: ${roomSlug} as ${this.displayName}`);
       
@@ -94,6 +107,9 @@ export class MultiplayerManager {
       // Set up state listeners
       this.setupStateListeners();
       
+      // Start heartbeat to keep connection alive
+      this.startHeartbeat();
+      
       return true;
     } catch (error) {
       console.error('[Multiplayer] Connection failed:', error);
@@ -108,29 +124,49 @@ export class MultiplayerManager {
   private async loadOrCreateUser(): Promise<void> {
     // Get user ID from localStorage
     const userId = localStorage.getItem('arkagentic_user_id');
+    
+    // Check for offline mode credentials first (most common case after CharacterSelect)
+    const offlineName = localStorage.getItem('arkagentic_offline_name');
+    const offlineAvatar = localStorage.getItem('arkagentic_offline_avatar');
+    
+    if (offlineName && offlineAvatar) {
+      this.userId = userId || `offline-${Date.now()}`;
+      this.displayName = offlineName;
+      this.avatarSprite = offlineAvatar;
+      console.log(`[Multiplayer] Using offline credentials: ${this.displayName}`);
+      return;
+    }
+    
+    // Check for legacy cached user (backwards compatibility)
     const cachedUser = localStorage.getItem('arkagentic_user');
-    
-    if (userId && cachedUser) {
-      const user = JSON.parse(cachedUser);
-      this.userId = user.id;
-      this.displayName = user.display_name || 'Player';
-      this.avatarSprite = user.avatar_sprite || 'brendan';
-      console.log(`[Multiplayer] Loaded user from storage: ${this.displayName} (${this.userId})`);
-      return;
-    }
-    
     if (cachedUser) {
-      // Offline/legacy user
       const user = JSON.parse(cachedUser);
-      this.userId = user.id || `offline-${Date.now()}`;
+      this.userId = user.id || userId || `offline-${Date.now()}`;
       this.displayName = user.display_name || 'Player';
       this.avatarSprite = user.avatar_sprite || 'brendan';
-      console.log(`[Multiplayer] Using offline user: ${this.displayName}`);
+      console.log(`[Multiplayer] Using cached user: ${this.displayName}`);
       return;
     }
     
-    // Fallback - should not happen if CharacterSelectScene worked
-    console.warn('[Multiplayer] No user found - using anonymous');
+    // If we have a userId, try to fetch from API
+    if (userId && !userId.startsWith('offline-')) {
+      try {
+        const response = await fetch(`/api/users/${userId}`);
+        if (response.ok) {
+          const user = await response.json();
+          this.userId = user.id;
+          this.displayName = user.display_name || 'Player';
+          this.avatarSprite = user.avatar_sprite || 'brendan';
+          console.log(`[Multiplayer] Fetched user from API: ${this.displayName}`);
+          return;
+        }
+      } catch (error) {
+        console.warn('[Multiplayer] Failed to fetch user from API:', error);
+      }
+    }
+    
+    // Fallback - generate anonymous user
+    console.warn('[Multiplayer] No user found - using anonymous guest');
     this.userId = `anon-${Date.now()}`;
     this.displayName = `Guest${Math.floor(Math.random() * 9999)}`;
     this.avatarSprite = 'brendan';
@@ -209,6 +245,7 @@ export class MultiplayerManager {
     this.room.onLeave((code: number) => {
       console.log(`[Multiplayer] Disconnected (code: ${code})`);
       this.isConnected = false;
+      this.stopHeartbeat();
       this.cleanup();
     });
   }
@@ -395,9 +432,35 @@ export class MultiplayerManager {
   }
 
   /**
+   * Start heartbeat to keep connection alive
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat(); // Clear any existing interval
+    
+    this.heartbeatInterval = setInterval(() => {
+      if (this.room && this.isConnected) {
+        this.room.send('heartbeat', {});
+      }
+    }, this.HEARTBEAT_INTERVAL_MS);
+    
+    console.log('[Multiplayer] Heartbeat started (every 10s)');
+  }
+  
+  /**
+   * Stop heartbeat
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  /**
    * Disconnect from server
    */
   disconnect(): void {
+    this.stopHeartbeat();
     if (this.room) {
       this.room.leave();
       this.room = null;

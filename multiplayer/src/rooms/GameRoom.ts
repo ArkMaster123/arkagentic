@@ -46,6 +46,14 @@ export class GameRoom extends Room<GameRoomState> {
       player.lastUpdate = Date.now();
     });
     
+    // Handle heartbeat (keep-alive ping)
+    this.onMessage("heartbeat", (client: Client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      
+      player.lastUpdate = Date.now();
+    });
+    
     // Handle player changing rooms (for room transitions)
     this.onMessage("changeRoom", (client: Client, data: { roomSlug: string }) => {
       const player = this.state.players.get(client.sessionId);
@@ -139,15 +147,22 @@ export class GameRoom extends Room<GameRoomState> {
   
   /**
    * Clean up players that haven't sent updates in a while
+   * Note: With heartbeat every 10s, 120s threshold gives 12 missed heartbeats before removal
    */
   private cleanupStalePlayers() {
     const now = Date.now();
-    const staleThreshold = 60000; // 60 seconds
+    const staleThreshold = 120000; // 2 minutes (was 60s, increased for reliability)
     
     this.state.players.forEach((player, sessionId) => {
       if (now - player.lastUpdate > staleThreshold) {
-        console.log(`[GameRoom] Removing stale player: ${player.displayName}`);
+        console.log(`[GameRoom] Removing stale player: ${player.displayName} (no update for ${Math.round((now - player.lastUpdate) / 1000)}s)`);
         this.state.players.delete(sessionId);
+        
+        // Notify others
+        this.broadcast("playerLeft", {
+          sessionId,
+          displayName: player.displayName
+        });
       }
     });
   }

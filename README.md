@@ -23,6 +23,111 @@ A real-time multiplayer virtual world where AI agents and human players coexist 
 
 ---
 
+## How We Built This
+
+```
+                              ARKAGENTIC ARCHITECTURE
+    
+    +-----------------------------------------------------------------------------------+
+    |                                   BROWSER                                          |
+    |  +-----------------------------------------------------------------------------+  |
+    |  |                         PHASER 3 GAME ENGINE                                |  |
+    |  |                                                                             |  |
+    |  |   +----------------+    +----------------+    +------------------+          |  |
+    |  |   |   TownScene    |    | MeetingRoom    |    |     Player       |          |  |
+    |  |   |                |    |    Scene       |    |    Controls      |          |  |
+    |  |   | - Tilemap      |    |                |    |                  |          |  |
+    |  |   | - 6 AI Agents  |    | - Jitsi Zones  |    | - WASD Movement  |          |  |
+    |  |   | - Buildings    |    | - Video Chat   |    | - C to Chat      |          |  |
+    |  |   | - Doors/Portals|    | - Proximity    |    | - E to Enter     |          |  |
+    |  |   +-------+--------+    +-------+--------+    +--------+---------+          |  |
+    |  |           |                     |                      |                    |  |
+    |  +-----------+---------------------+----------------------+--------------------+  |
+    |              |                     |                      |                       |
+    +--------------|---------------------|----------------------|-----------------------+
+                   |                     |                      |
+                   v                     v                      v
+    +---------------------------+  +-------------+  +---------------------------+
+    |      MULTIPLAYER          |  |   JITSI     |  |       BACKEND API         |
+    |      (Colyseus)           |  |   MEET      |  |       (FastAPI)           |
+    |      Port 2567            |  |             |  |       Port 3001           |
+    +---------------------------+  +-------------+  +---------------------------+
+    |                           |  |             |  |                           |
+    | - Real-time player sync   |  | - Video     |  | - /api/chat/stream (SSE)  |
+    | - WebSocket connections   |  |   calling   |  | - /api/route              |
+    | - Room-based sessions     |  | - Screen    |  | - /api/agents             |
+    | - Chat broadcast          |  |   share     |  | - /api/models             |
+    | - Heartbeat keep-alive    |  | - Free      |  | - User settings           |
+    |                           |  |   servers   |  |                           |
+    +------------+--------------+  +-------------+  +-------------+-------------+
+                 |                                                |
+                 |         +---------------------------+          |
+                 |         |                           |          |
+                 +-------->|      PostgreSQL DB        |<---------+
+                           |      Port 5432            |
+                           +---------------------------+
+                           |                           |
+                           | - users, user_settings    |
+                           | - agents, agent_prompts   |
+                           | - rooms, buildings        |
+                           | - chat_sessions, messages |
+                           | - player_presence         |
+                           |                           |
+                           +---------------------------+
+                                        |
+                                        v
+                           +---------------------------+
+                           |      STRANDS AGENTS       |
+                           |      (AI Framework)       |
+                           +---------------------------+
+                           |                           |
+                           | Scout     - Research      |
+                           | Sage      - Strategy      |
+                           | Chronicle - Writing       |
+                           | Trends    - News          |
+                           | Maven     - General       |
+                           | Gandalfius- Freelancing   |
+                           |                           |
+                           +-------------+-------------+
+                                         |
+                                         v
+                           +---------------------------+
+                           |      OPENROUTER API       |
+                           |      (LLM Gateway)        |
+                           +---------------------------+
+                           |                           |
+                           | - Claude 3.5 Haiku        |
+                           | - Mistral Nemo            |
+                           | - GPT-4.1 Nano            |
+                           | - Gemini Flash            |
+                           | - User-selectable model   |
+                           |                           |
+                           +---------------------------+
+
+    DATA FLOW:
+    
+    1. Player moves in Phaser -> WebSocket -> Colyseus -> Broadcasts to all clients
+    2. Player chats with agent -> HTTP POST -> FastAPI -> Strands -> OpenRouter -> SSE Stream back
+    3. Player enters meeting room -> Jitsi SDK -> meet.jit.si servers -> Video/Audio
+    4. Player settings saved -> HTTP POST -> FastAPI -> PostgreSQL
+```
+
+### Tech Stack Summary
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Frontend** | Phaser 3 + TypeScript | 2D game engine, tilemap rendering, player controls |
+| **UI** | HTML/CSS + Vite | Sidebar chat, settings modal, agent cards |
+| **Multiplayer** | Colyseus 0.15 | Real-time WebSocket sync, room state management |
+| **Video Chat** | Jitsi Meet | Proximity-based video calling in meeting rooms |
+| **Backend API** | FastAPI (Python) | REST endpoints, SSE streaming for chat |
+| **AI Agents** | Strands Agents | Multi-agent orchestration, tool use |
+| **LLM** | OpenRouter | Gateway to Claude, GPT, Mistral, Gemini |
+| **Database** | PostgreSQL 16 | Users, agents, rooms, chat history |
+| **Reverse Proxy** | Nginx | SSL termination, WebSocket upgrade, static files |
+
+---
+
 ## Quick Start
 
 ### Option 1: Automated Setup (Recommended)
