@@ -183,60 +183,7 @@
                          "value":"onaction"
                         }]
                 },
-                {
-                 "height":48,
-                 "id":5,
-                 "name":"Meeting Room Gamma",
-                 "rotation":0,
-                 "type":"jitsi-zone",
-                 "visible":true,
-                 "width":128,
-                 "x":16,
-                 "y":240,
-                 "properties":[
-                        {
-                         "name":"roomName",
-                         "type":"string",
-                         "value":"meeting-gamma"
-                        },
-                        {
-                         "name":"displayName",
-                         "type":"string",
-                         "value":"Meeting Room Gamma"
-                        },
-                        {
-                         "name":"trigger",
-                         "type":"string",
-                         "value":"onaction"
-                        }]
-                },
-                {
-                 "height":48,
-                 "id":6,
-                 "name":"Meeting Room Delta",
-                 "rotation":0,
-                 "type":"jitsi-zone",
-                 "visible":true,
-                 "width":128,
-                 "x":336,
-                 "y":240,
-                 "properties":[
-                        {
-                         "name":"roomName",
-                         "type":"string",
-                         "value":"meeting-delta"
-                        },
-                        {
-                         "name":"displayName",
-                         "type":"string",
-                         "value":"Meeting Room Delta"
-                        },
-                        {
-                         "name":"trigger",
-                         "type":"string",
-                         "value":"onaction"
-                        }]
-                },
+
 
                 {
                  "height":64,

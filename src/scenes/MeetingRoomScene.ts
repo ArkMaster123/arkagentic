@@ -62,6 +62,7 @@ export class MeetingRoomScene extends Scene {
     this.initJitsi();
     this.createUI();
     this.setupInput();
+    this.createMaintenanceSigns();
 
     // Hide transition after room is ready
     setTimeout(() => {
@@ -250,6 +251,59 @@ export class MeetingRoomScene extends Scene {
 
     container.add([highlight, label]);
     return container;
+  }
+
+  /**
+   * Create "Under Maintenance" signs for Gamma and Delta rooms
+   */
+  private createMaintenanceSigns(): void {
+    // Gamma room sign (bottom-left)
+    this.createMaintenanceSign(80, 220, 'Meeting Room Gamma');
+    
+    // Delta room sign (bottom-right)  
+    this.createMaintenanceSign(400, 220, 'Meeting Room Delta');
+  }
+
+  private createMaintenanceSign(x: number, y: number, roomName: string): void {
+    const container = this.add.container(x, y);
+    container.setDepth(100);
+
+    // Sign background
+    const bg = this.add.graphics();
+    bg.fillStyle(0xf5a623, 1); // Orange/yellow construction color
+    bg.fillRoundedRect(-55, -30, 110, 60, 8);
+    bg.lineStyle(3, 0x8B4513); // Brown border
+    bg.strokeRoundedRect(-55, -30, 110, 60, 8);
+
+    // Construction emoji/icon (using text)
+    const icon = this.add.text(0, -12, '🚧', {
+      fontSize: '20px',
+    }).setOrigin(0.5);
+
+    // "Under Maintenance" text
+    const mainText = this.add.text(0, 8, 'Under', {
+      fontSize: '10px',
+      color: '#000000',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    const subText = this.add.text(0, 20, 'Maintenance', {
+      fontSize: '9px',
+      color: '#333333',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    container.add([bg, icon, mainText, subText]);
+
+    // Gentle floating animation
+    this.tweens.add({
+      targets: container,
+      y: y - 3,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
   }
 
   private initJitsi(): void {
