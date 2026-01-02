@@ -535,14 +535,69 @@ export class MeetingRoomScene extends Scene {
 
     if (prompt && title && desc) {
       title.textContent = `Join ${zone.displayName || 'Meeting'}`;
-      desc.textContent = 'Press J to join the video call';
+      desc.textContent = 'Press SPACE to join the video call';
       prompt.classList.add('show');
+    }
+    
+    // Also show in-game prompt
+    this.showInGamePrompt(zone);
+  }
+  
+  private inGamePrompt: GameObjects.Container | null = null;
+  
+  private showInGamePrompt(zone: JitsiZone): void {
+    // Remove existing prompt
+    if (this.inGamePrompt) {
+      this.inGamePrompt.destroy();
+      this.inGamePrompt = null;
+    }
+    
+    // Create in-game prompt near the zone
+    this.inGamePrompt = this.add.container(
+      zone.x + zone.width / 2,
+      zone.y - 20
+    );
+    this.inGamePrompt.setDepth(100);
+    
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.85);
+    bg.fillRoundedRect(-60, -12, 120, 24, 6);
+    bg.lineStyle(2, 0x4a90d9);
+    bg.strokeRoundedRect(-60, -12, 120, 24, 6);
+    
+    // Text
+    const text = this.add.text(0, 0, 'Press SPACE to join', {
+      fontSize: '10px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    
+    this.inGamePrompt.add([bg, text]);
+    
+    // Pulse animation
+    this.tweens.add({
+      targets: this.inGamePrompt,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+  
+  private hideInGamePrompt(): void {
+    if (this.inGamePrompt) {
+      this.inGamePrompt.destroy();
+      this.inGamePrompt = null;
     }
   }
 
   private hideJitsiPrompt(): void {
     const prompt = document.getElementById('jitsi-prompt');
     prompt?.classList.remove('show');
+    this.hideInGamePrompt();
   }
 
   private updateZoneUI(inCall: boolean): void {

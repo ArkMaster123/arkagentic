@@ -130,14 +130,14 @@
                  "y":304
                 },
                 {
-                 "height":96,
+                 "height":64,
                  "id":3,
                  "name":"Meeting Room Alpha",
                  "rotation":0,
                  "type":"jitsi-zone",
                  "visible":true,
-                 "width":128,
-                 "x":16,
+                 "width":112,
+                 "x":24,
                  "y":32,
                  "properties":[
                         {
@@ -153,18 +153,18 @@
                         {
                          "name":"trigger",
                          "type":"string",
-                         "value":"onenter"
+                         "value":"onaction"
                         }]
                 },
                 {
-                 "height":96,
+                 "height":64,
                  "id":4,
                  "name":"Meeting Room Beta",
                  "rotation":0,
                  "type":"jitsi-zone",
                  "visible":true,
-                 "width":128,
-                 "x":336,
+                 "width":112,
+                 "x":344,
                  "y":32,
                  "properties":[
                         {
@@ -180,18 +180,18 @@
                         {
                          "name":"trigger",
                          "type":"string",
-                         "value":"onenter"
+                         "value":"onaction"
                         }]
                 },
                 {
-                 "height":64,
+                 "height":48,
                  "id":5,
                  "name":"Meeting Room Gamma",
                  "rotation":0,
                  "type":"jitsi-zone",
                  "visible":true,
-                 "width":128,
-                 "x":16,
+                 "width":112,
+                 "x":24,
                  "y":240,
                  "properties":[
                         {
@@ -207,18 +207,18 @@
                         {
                          "name":"trigger",
                          "type":"string",
-                         "value":"onenter"
+                         "value":"onaction"
                         }]
                 },
                 {
-                 "height":64,
+                 "height":48,
                  "id":6,
                  "name":"Meeting Room Delta",
                  "rotation":0,
                  "type":"jitsi-zone",
                  "visible":true,
-                 "width":128,
-                 "x":336,
+                 "width":112,
+                 "x":344,
                  "y":240,
                  "properties":[
                         {
@@ -234,7 +234,7 @@
                         {
                          "name":"trigger",
                          "type":"string",
-                         "value":"onenter"
+                         "value":"onaction"
                         }]
                 },
                 {
@@ -244,9 +244,9 @@
                  "rotation":0,
                  "type":"jitsi-zone",
                  "visible":true,
-                 "width":128,
-                 "x":176,
-                 "y":160,
+                 "width":96,
+                 "x":192,
+                 "y":176,
                  "properties":[
                         {
                          "name":"roomName",
@@ -261,92 +261,7 @@
                         {
                          "name":"trigger",
                          "type":"string",
-                         "value":"onenter"
-                        }]
-                },
-                {
-                 "height":64,
-                 "id":8,
-                 "name":"Alpha Table",
-                 "rotation":0,
-                 "type":"interactive",
-                 "visible":true,
-                 "width":96,
-                 "x":32,
-                 "y":32,
-                 "properties":[
-                        {
-                         "name":"message",
-                         "type":"string",
-                         "value":"Meeting Room Alpha - Walk inside to join the video call with your team!"
-                        }]
-                },
-                {
-                 "height":64,
-                 "id":9,
-                 "name":"Beta Table",
-                 "rotation":0,
-                 "type":"interactive",
-                 "visible":true,
-                 "width":96,
-                 "x":352,
-                 "y":32,
-                 "properties":[
-                        {
-                         "name":"message",
-                         "type":"string",
-                         "value":"Meeting Room Beta - Perfect for brainstorming! Walk in to join."
-                        }]
-                },
-                {
-                 "height":32,
-                 "id":10,
-                 "name":"Conference Table",
-                 "rotation":0,
-                 "type":"interactive",
-                 "visible":true,
-                 "width":96,
-                 "x":192,
-                 "y":176,
-                 "properties":[
-                        {
-                         "name":"message",
-                         "type":"string",
-                         "value":"The Main Conference Room - Our largest meeting space for team-wide discussions!"
-                        }]
-                },
-                {
-                 "height":64,
-                 "id":11,
-                 "name":"Gamma Table",
-                 "rotation":0,
-                 "type":"interactive",
-                 "visible":true,
-                 "width":96,
-                 "x":32,
-                 "y":240,
-                 "properties":[
-                        {
-                         "name":"message",
-                         "type":"string",
-                         "value":"Meeting Room Gamma - A quiet space for focused discussions."
-                        }]
-                },
-                {
-                 "height":64,
-                 "id":12,
-                 "name":"Delta Table",
-                 "rotation":0,
-                 "type":"interactive",
-                 "visible":true,
-                 "width":96,
-                 "x":352,
-                 "y":240,
-                 "properties":[
-                        {
-                         "name":"message",
-                         "type":"string",
-                         "value":"Meeting Room Delta - Great for one-on-one meetings and quick syncs."
+                         "value":"onaction"
                         }]
                 }],
          "opacity":1,
