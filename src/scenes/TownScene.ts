@@ -132,7 +132,8 @@ export class TownScene extends Scene {
     this.initCamera();
     this.initUI();
     this.initMultiplayer();
-    this.initJitsi();
+    // Jitsi disabled in town - only available in Meeting Rooms
+    // this.initJitsi();
     this.createMeetingRoomSign();
     
     // Listen for global events
@@ -162,8 +163,8 @@ export class TownScene extends Scene {
       // Check for meeting room entrance
       this.checkMeetingRoomProximity();
       
-      // Check for Jitsi proximity zones
-      this.checkJitsiProximity();
+      // Jitsi disabled in town - only available in Meeting Rooms
+      // this.checkJitsiProximity();
       
       // Update proximity audio for other players
       this.updateProximityAudio();
