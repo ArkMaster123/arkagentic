@@ -251,12 +251,14 @@ app.add_middleware(
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "agentverse-api"}
 
 
 @app.get("/agents", response_model=List[AgentInfo])
+@app.get("/api/agents", response_model=List[AgentInfo])
 async def list_agents():
     """List all available agents."""
     orchestrator = get_orchestrator()
@@ -264,6 +266,7 @@ async def list_agents():
 
 
 @app.get("/agents/{agent_id}", response_model=AgentInfo)
+@app.get("/api/agents/{agent_id}", response_model=AgentInfo)
 async def get_agent(agent_id: str):
     """Get info about a specific agent."""
     orchestrator = get_orchestrator()
@@ -274,6 +277,7 @@ async def get_agent(agent_id: str):
 
 
 @app.post("/route", response_model=RouteResponse)
+@app.post("/api/route", response_model=RouteResponse)
 async def route_query(request: ChatRequest):
     """Route a query to determine which agent would handle it."""
     agent_type = route_to_agent(request.message)
@@ -287,6 +291,7 @@ async def route_query(request: ChatRequest):
 
 
 @app.post("/chat", response_model=ChatResponse)
+@app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
     Send a message to the agent system.
