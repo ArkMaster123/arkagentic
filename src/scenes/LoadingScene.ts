@@ -56,6 +56,9 @@ export class LoadingScene extends Scene {
     this.load.tilemapTiledJSON('room-chronicle', '/assets/tilemaps/json/room-chronicle.json');
     this.load.tilemapTiledJSON('room-trends', '/assets/tilemaps/json/room-trends.json');
     this.load.tilemapTiledJSON('room-maven', '/assets/tilemaps/json/room-maven.json');
+    
+    // Load meeting room tilemap (shared meeting spaces with Jitsi integration)
+    this.load.tilemapTiledJSON('room-meeting', '/assets/tilemaps/json/room-meeting.json');
 
     // Load all agent sprites (Pokemon-style characters)
     // Sprites are horizontal strips with 12 frames (4 directions x 3 frames each)

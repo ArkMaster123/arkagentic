@@ -12,6 +12,15 @@ import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 import type { Board, QuadGrid } from 'phaser3-rex-plugins/plugins/board-components';
 
+// Meeting room entrance zone configuration
+const MEETING_ROOM_ENTRANCE = {
+  name: 'Meeting Rooms',
+  x: 720,      // Far right of the map (tile 45 * 16 = 720)
+  y: 240,      // Center-ish vertically
+  width: 48,
+  height: 64,
+};
+
 interface ConversationMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -65,6 +74,11 @@ export class TownScene extends Scene {
   // Door interaction
   private nearbyDoor: typeof this.buildingZones[0] | null = null;
   private doorPrompt: GameObjects.Container | null = null;
+  
+  // Meeting room entrance
+  private nearMeetingRoomEntrance: boolean = false;
+  private meetingRoomPrompt: GameObjects.Container | null = null;
+  private meetingRoomSign: GameObjects.Container | null = null;
 
   // Building zones for door detection (pixel coordinates)
   // Based on visible buildings in the tilemap - doors are at bottom of each building
@@ -119,6 +133,7 @@ export class TownScene extends Scene {
     this.initUI();
     this.initMultiplayer();
     this.initJitsi();
+    this.createMeetingRoomSign();
     
     // Listen for global events
     this.setupEventListeners();
@@ -143,6 +158,9 @@ export class TownScene extends Scene {
       
       // Check for nearby doors
       this.checkDoorProximity();
+      
+      // Check for meeting room entrance
+      this.checkMeetingRoomProximity();
       
       // Check for Jitsi proximity zones
       this.checkJitsiProximity();
@@ -648,6 +666,155 @@ export class TownScene extends Scene {
     }
   }
   
+  /**
+   * Create a visual sign for the meeting rooms entrance on the far right of the map
+   */
+  private createMeetingRoomSign(): void {
+    const entrance = MEETING_ROOM_ENTRANCE;
+    
+    // Create a sign post container
+    this.meetingRoomSign = this.add.container(entrance.x + entrance.width / 2, entrance.y - 20);
+    this.meetingRoomSign.setDepth(50);
+    
+    // Sign background
+    const signBg = this.add.graphics();
+    signBg.fillStyle(0x8B4513, 1); // Wood brown
+    signBg.fillRoundedRect(-40, -20, 80, 24, 4);
+    signBg.fillStyle(0x654321, 1);
+    signBg.fillRect(-2, 4, 4, 30); // Post
+    
+    // Sign text
+    const signText = this.add.text(0, -8, 'Meeting Rooms', {
+      fontSize: '7px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    
+    // Arrow pointing right/into the area
+    const arrow = this.add.text(0, 2, '>>>', {
+      fontSize: '6px',
+      color: '#4a90d9',
+    }).setOrigin(0.5);
+    
+    this.meetingRoomSign.add([signBg, signText, arrow]);
+    
+    // Create a subtle floor indicator for the entrance zone
+    const zoneIndicator = this.add.graphics();
+    zoneIndicator.fillStyle(0x4a90d9, 0.15);
+    zoneIndicator.fillRect(entrance.x, entrance.y, entrance.width, entrance.height);
+    zoneIndicator.lineStyle(1, 0x4a90d9, 0.3);
+    zoneIndicator.strokeRect(entrance.x, entrance.y, entrance.width, entrance.height);
+    zoneIndicator.setDepth(1);
+  }
+  
+  /**
+   * Check if player is near the meeting room entrance
+   */
+  private checkMeetingRoomProximity(): void {
+    if (!this.player) return;
+    
+    const entrance = MEETING_ROOM_ENTRANCE;
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+    
+    const isNear = (
+      playerX >= entrance.x &&
+      playerX <= entrance.x + entrance.width &&
+      playerY >= entrance.y &&
+      playerY <= entrance.y + entrance.height
+    );
+    
+    if (isNear !== this.nearMeetingRoomEntrance) {
+      this.nearMeetingRoomEntrance = isNear;
+      this.updateMeetingRoomPrompt();
+    }
+  }
+  
+  /**
+   * Show/hide the meeting room entrance prompt
+   */
+  private updateMeetingRoomPrompt(): void {
+    // Remove existing prompt
+    if (this.meetingRoomPrompt) {
+      this.meetingRoomPrompt.destroy();
+      this.meetingRoomPrompt = null;
+    }
+    
+    if (!this.nearMeetingRoomEntrance || !this.player) return;
+    
+    const entrance = MEETING_ROOM_ENTRANCE;
+    
+    // Create prompt above the entrance
+    this.meetingRoomPrompt = this.add.container(
+      entrance.x + entrance.width / 2,
+      entrance.y - 40
+    );
+    this.meetingRoomPrompt.setDepth(200);
+    
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.85);
+    bg.fillRoundedRect(-70, -14, 140, 28, 6);
+    bg.lineStyle(1, 0x4a90d9);
+    bg.strokeRoundedRect(-70, -14, 140, 28, 6);
+    
+    // Text
+    const text = this.add.text(0, -2, 'Press SPACE to enter', {
+      fontSize: '9px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    const nameText = this.add.text(0, 8, 'Meeting Rooms', {
+      fontSize: '8px',
+      color: '#4a90d9',
+    }).setOrigin(0.5);
+    
+    this.meetingRoomPrompt.add([bg, text, nameText]);
+    
+    // Pulse animation
+    this.tweens.add({
+      targets: this.meetingRoomPrompt,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+  
+  /**
+   * Enter the meeting rooms area
+   */
+  private enterMeetingRooms(): void {
+    // Disable further input while transitioning
+    this.input.enabled = false;
+    
+    // Update URL
+    window.history.pushState({}, '', '/town/meetings');
+    
+    // Show retro transition
+    if ((window as any).showTransition) {
+      (window as any).showTransition(
+        `/assets/sprites/${this.playerAvatar}.png`,
+        'Entering Meeting Rooms...',
+        () => {
+          this.scene.start('meeting-room-scene', {
+            fromTown: true,
+            playerAvatar: this.playerAvatar,
+            playerName: this.playerName,
+          });
+        }
+      );
+    } else {
+      this.scene.start('meeting-room-scene', {
+        fromTown: true,
+        playerAvatar: this.playerAvatar,
+        playerName: this.playerName,
+      });
+    }
+  }
+  
   private showJitsiPrompt(zone: JitsiZone): void {
     const prompt = document.getElementById('jitsi-prompt');
     const title = document.getElementById('jitsi-prompt-title');
@@ -1095,11 +1262,14 @@ export class TownScene extends Scene {
     // Create interactive zones for building doors
     this.createDoorZones();
     
-    // SPACE key to enter nearby building
+    // SPACE key to enter nearby building or meeting rooms
     this.input.keyboard?.on('keydown-SPACE', () => {
       if (this.nearbyDoor) {
         console.log(`[TownScene] Entering ${this.nearbyDoor.name} via SPACE key`);
         this.enterBuilding(this.nearbyDoor);
+      } else if (this.nearMeetingRoomEntrance) {
+        console.log('[TownScene] Entering Meeting Rooms via SPACE key');
+        this.enterMeetingRooms();
       }
     });
     
@@ -1108,6 +1278,9 @@ export class TownScene extends Scene {
       if (this.nearbyDoor) {
         console.log(`[TownScene] Entering ${this.nearbyDoor.name} via E key`);
         this.enterBuilding(this.nearbyDoor);
+      } else if (this.nearMeetingRoomEntrance) {
+        console.log('[TownScene] Entering Meeting Rooms via E key');
+        this.enterMeetingRooms();
       }
     });
     

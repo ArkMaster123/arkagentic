@@ -3,6 +3,7 @@ import { LoadingScene } from './scenes/LoadingScene';
 import { CharacterSelectScene } from './scenes/CharacterSelectScene';
 import { TownScene } from './scenes/TownScene';
 import { RoomScene } from './scenes/RoomScene';
+import { MeetingRoomScene } from './scenes/MeetingRoomScene';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 
@@ -21,6 +22,7 @@ const ROOM_ROUTES: Record<string, string> = {
   'newsroom': 'chronicle',
   'intelligencehub': 'trends',
   'welcomecenter': 'maven',
+  'meetings': 'meetings',  // Special route for meeting rooms
 };
 
 // Reverse mapping for generating URLs
@@ -30,16 +32,26 @@ const AGENT_TO_ROUTE: Record<string, string> = {
   'chronicle': 'newsroom',
   'trends': 'intelligencehub',
   'maven': 'welcomecenter',
+  'meetings': 'meetings',
 };
 
 // Parse current URL to determine starting scene
 function parseRoute(): { scene: string; data?: any } {
   const path = window.location.pathname.toLowerCase();
   
-  // Check for room routes: /town/researchlab, /town/newsroom, etc.
+  // Check for room routes: /town/researchlab, /town/newsroom, /town/meetings, etc.
   const roomMatch = path.match(/^\/town\/([a-z]+)\/?$/);
   if (roomMatch) {
     const roomSlug = roomMatch[1];
+    
+    // Special handling for meeting rooms
+    if (roomSlug === 'meetings') {
+      return {
+        scene: 'meeting-room-scene',
+        data: { fromTown: false }
+      };
+    }
+    
     const agentType = ROOM_ROUTES[roomSlug];
     if (agentType) {
       return { 
@@ -76,6 +88,8 @@ function handleRouteChange() {
   // Start the appropriate scene
   if (route.scene === 'room-scene' && route.data) {
     game.scene.start('room-scene', route.data);
+  } else if (route.scene === 'meeting-room-scene') {
+    game.scene.start('meeting-room-scene', route.data || {});
   } else {
     game.scene.start('town-scene');
   }
@@ -140,7 +154,7 @@ export const gameConfig: Types.Core.GameConfig = {
   audio: {
     disableWebAudio: false,
   },
-  scene: [LoadingScene, CharacterSelectScene, TownScene, RoomScene],
+  scene: [LoadingScene, CharacterSelectScene, TownScene, RoomScene, MeetingRoomScene],
   dom: {
     createContainer: true,
   },
