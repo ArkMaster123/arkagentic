@@ -243,9 +243,42 @@ export class MultiplayerManager {
       }
     });
     
-    // Listen for player joined messages
+    // Listen for player joined messages - USE THIS AS PRIMARY WAY TO CREATE PLAYERS
+    // (onAdd may not fire reliably in all cases)
     this.room.onMessage('playerJoined', (data: any) => {
-      console.log(`[Multiplayer] Player joined notification: ${data.displayName}`);
+      console.log(`[Multiplayer] Player joined notification: ${data.displayName} (${data.sessionId})`);
+      
+      // Create the player sprite if we don't have it yet
+      if (data.sessionId && data.sessionId !== this.room?.sessionId && !this.remotePlayers.has(data.sessionId)) {
+        console.log(`[Multiplayer] Creating player from playerJoined message: ${data.displayName}`);
+        
+        // Create a temporary player state object
+        const playerState: PlayerState = {
+          sessionId: data.sessionId,
+          odyseus: '',
+          displayName: data.displayName || 'Player',
+          avatarSprite: data.avatarSprite || 'brendan',
+          x: 384, // Default spawn position
+          y: 280,
+          direction: 'down',
+          isMoving: false,
+          animation: 'idle-down',
+          currentRoom: 'town',
+          lastUpdate: Date.now(),
+          onChange: () => {},
+        };
+        
+        this.createRemotePlayer(data.sessionId, playerState);
+        
+        // Try to get actual player from state and listen for changes
+        const actualPlayer = this.room?.state.players.get(data.sessionId);
+        if (actualPlayer) {
+          actualPlayer.onChange(() => {
+            this.updateRemotePlayer(data.sessionId, actualPlayer);
+          });
+        }
+      }
+      
       if ((window as any).addRoomChatMessage) {
         (window as any).addRoomChatMessage('', `${data.displayName} joined the room`, false, true);
       }
