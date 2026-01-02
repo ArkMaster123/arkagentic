@@ -175,25 +175,34 @@ export class MultiplayerManager {
    * Set up listeners for state changes using Colyseus 0.16+ getStateCallbacks API
    */
   private setupStateListeners(): void {
-    if (!this.room) return;
+    if (!this.room || !this.room.state) {
+      console.error('[Multiplayer] Room or state not available');
+      return;
+    }
     
     // Initialize state callbacks helper (Colyseus 0.16+ API for real-time sync)
     this.$ = getStateCallbacks(this.room);
     const $ = this.$;
     
+    console.log('[Multiplayer] Setting up state listeners with getStateCallbacks API');
+    console.log('[Multiplayer] Room state:', this.room.state);
+    console.log('[Multiplayer] Players map:', this.room.state.players);
+    
     // Process existing players first (in case we joined a room with players already in it)
-    this.room.state.players.forEach((player: PlayerState, sessionId: string) => {
-      console.log(`[Multiplayer] Existing player found: ${player.displayName} (${sessionId})`);
-      
-      if (sessionId !== this.room?.sessionId) {
-        this.createRemotePlayer(sessionId, player);
+    if (this.room.state.players && typeof this.room.state.players.forEach === 'function') {
+      this.room.state.players.forEach((player: PlayerState, sessionId: string) => {
+        console.log(`[Multiplayer] Existing player found: ${player.displayName} (${sessionId})`);
         
-        // Listen for position changes on this player using $ wrapper
-        $(player).onChange(() => {
-          this.updateRemotePlayer(sessionId, player);
-        });
-      }
-    });
+        if (sessionId !== this.room?.sessionId) {
+          this.createRemotePlayer(sessionId, player);
+          
+          // Listen for position changes on this player using $ wrapper
+          $(player).onChange(() => {
+            this.updateRemotePlayer(sessionId, player);
+          });
+        }
+      });
+    }
     
     // Listen for NEW player additions using Colyseus 0.16+ API
     ($(this.room.state).players as any).onAdd((player: PlayerState, sessionId: string) => {
