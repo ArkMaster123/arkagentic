@@ -118,7 +118,7 @@ A real-time multiplayer virtual world where AI agents and human players coexist 
 |-------|------------|---------|
 | **Frontend** | Phaser 3 + TypeScript | 2D game engine, tilemap rendering, player controls |
 | **UI** | HTML/CSS + Vite | Sidebar chat, settings modal, agent cards |
-| **Multiplayer** | Colyseus 0.15 | Real-time WebSocket sync, room state management |
+| **Multiplayer** | Colyseus 0.16 | Real-time WebSocket sync, room state management |
 | **Video Chat** | Jitsi Meet | Proximity-based video calling in meeting rooms |
 | **Backend API** | FastAPI (Python) | REST endpoints, SSE streaming for chat |
 | **AI Agents** | Strands Agents | Multi-agent orchestration, tool use |
@@ -227,9 +227,13 @@ Six specialized AI agents, each with unique expertise:
 
 ### Multiplayer Features
 
-- **Real-time player sync** via Colyseus WebSocket server
+- **Real-time player sync** via Colyseus 0.16 WebSocket server with `getStateCallbacks` API
+- **Live movement synchronization** - see other players walking around in real-time
 - **Room Chat** - text chat with other players in the same room
 - **Chat bubbles** appear above players when they send messages
+- **Player name labels** - green name tags above all remote players
+- **Smooth interpolation** - fluid movement rendering for remote players
+- **Heartbeat keep-alive** - stable connections with automatic reconnection
 - **Video Meeting Rooms** - Jitsi-powered video conferencing
 
 ### Controls
@@ -600,6 +604,9 @@ arkagentic/
 1. Ensure multiplayer server is running on port 2567
 2. Check browser console for WebSocket errors
 3. Verify no firewall blocking port 2567
+4. Look for `[Multiplayer] Connected!` and `[Multiplayer] Player joined (onAdd):` in console
+5. Ensure both client (colyseus.js) and server (@colyseus/core) are on version 0.16+
+6. Check server logs: `journalctl -u agentverse-multiplayer -f`
 
 ### "Docker containers won't start"
 
@@ -635,5 +642,24 @@ MIT License - See LICENSE file
 ---
 
 **Created:** December 2024
+**Last Updated:** January 2026
 **Status:** Active Development
 **Maintainer:** [@ArkMaster123](https://github.com/ArkMaster123)
+
+---
+
+## Changelog
+
+### January 2026
+- **Upgraded to Colyseus 0.16** with `@colyseus/schema` v3 for proper real-time state synchronization
+- **Fixed multiplayer movement sync** - players now see each other moving in real-time using the new `getStateCallbacks()` API
+- **Added smooth interpolation** for remote player positions
+- **Added player name labels** (green tags) above all remote players
+- **Improved connection stability** with heartbeat keep-alive system
+- **Added comprehensive debug logging** for multiplayer troubleshooting
+
+### December 2024
+- Initial release with AI agents, multiplayer chat, and video conferencing
+- Six specialized AI agents powered by Strands and OpenRouter
+- Phaser 3 game engine with tilemap-based world
+- PostgreSQL database for persistent user data
