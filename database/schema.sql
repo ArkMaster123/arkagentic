@@ -32,6 +32,8 @@ CREATE TABLE user_settings (
     volume              INTEGER DEFAULT 100 CHECK (volume BETWEEN 0 AND 100),
     theme               VARCHAR(20) DEFAULT 'dark',
     show_player_names   BOOLEAN DEFAULT true,
+    preferred_ai_model  VARCHAR(100) DEFAULT 'anthropic/claude-3.5-haiku',
+    model_temperature   DECIMAL(2,1) DEFAULT 0.7 CHECK (model_temperature BETWEEN 0.0 AND 2.0),
     updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
 

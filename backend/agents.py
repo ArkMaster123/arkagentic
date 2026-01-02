@@ -11,8 +11,9 @@ This module defines our 5 specialized agents using Strands Agents framework:
 
 import os
 import logging
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, AsyncIterator
 from dotenv import load_dotenv
+import asyncio
 
 # Load environment variables
 load_dotenv(dotenv_path="../.env.local")
@@ -29,6 +30,72 @@ logging.basicConfig(
     format="%(levelname)s | %(name)s | %(message)s", handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+
+# Available AI models with pricing info (per 1M tokens from OpenRouter)
+AI_MODELS: Dict[str, Dict[str, Any]] = {
+    "mistralai/mistral-nemo": {
+        "name": "Mistral Nemo",
+        "provider": "Mistral AI",
+        "input_cost": 0.13,  # per 1M tokens
+        "output_cost": 0.13,
+        "context": 128000,
+        "speed": "fast",
+        "description": "Fast & cheap, great for most tasks",
+        "recommended": True,
+    },
+    "google/gemini-2.0-flash-lite-001": {
+        "name": "Gemini 2.0 Flash Lite",
+        "provider": "Google",
+        "input_cost": 0.075,
+        "output_cost": 0.30,
+        "context": 1000000,
+        "speed": "very fast",
+        "description": "Ultra-fast, massive context window",
+        "recommended": False,
+    },
+    "qwen/qwen-turbo": {
+        "name": "Qwen Turbo",
+        "provider": "Alibaba",
+        "input_cost": 0.20,
+        "output_cost": 0.20,
+        "context": 131072,
+        "speed": "fast",
+        "description": "Excellent multilingual support",
+        "recommended": False,
+    },
+    "openai/gpt-4.1-nano": {
+        "name": "GPT-4.1 Nano",
+        "provider": "OpenAI",
+        "input_cost": 0.10,
+        "output_cost": 0.40,
+        "context": 1047576,
+        "speed": "fast",
+        "description": "Compact but capable GPT-4 variant",
+        "recommended": False,
+    },
+    "anthropic/claude-3.5-haiku": {
+        "name": "Claude 3.5 Haiku",
+        "provider": "Anthropic",
+        "input_cost": 0.80,
+        "output_cost": 4.00,
+        "context": 200000,
+        "speed": "fast",
+        "description": "High quality, balanced performance",
+        "recommended": False,
+    },
+    "anthropic/claude-sonnet-4": {
+        "name": "Claude Sonnet 4",
+        "provider": "Anthropic",
+        "input_cost": 3.00,
+        "output_cost": 15.00,
+        "context": 200000,
+        "speed": "medium",
+        "description": "Premium quality, complex reasoning",
+        "recommended": False,
+    },
+}
+
+DEFAULT_MODEL = "mistralai/mistral-nemo"
 
 # Agent definitions with their system prompts
 AGENT_CONFIGS: Dict[str, Dict[str, str]] = {
@@ -214,12 +281,29 @@ You work as part of a team with Scout (research), Sage (analyst), Chronicle (wri
 }
 
 
-def get_model() -> OpenAIModel:
-    """Get the LLM model configured for OpenRouter."""
+def get_model(model_id: Optional[str] = None) -> OpenAIModel:
+    """Get the LLM model configured for OpenRouter.
+
+    Args:
+        model_id: Optional model ID (e.g., 'mistralai/mistral-nemo').
+                  Uses DEFAULT_MODEL if not specified.
+    """
     api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
 
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY or ANTHROPIC_API_KEY must be set")
+
+    # Use specified model or default
+    selected_model = model_id or DEFAULT_MODEL
+
+    # Validate model exists in our list
+    if selected_model not in AI_MODELS:
+        logger.warning(
+            f"Unknown model '{selected_model}', using default: {DEFAULT_MODEL}"
+        )
+        selected_model = DEFAULT_MODEL
+
+    logger.info(f"Using AI model: {selected_model}")
 
     # Use OpenAI-compatible endpoint with OpenRouter (needs /v1 suffix)
     return OpenAIModel(
@@ -227,17 +311,30 @@ def get_model() -> OpenAIModel:
             "api_key": api_key,
             "base_url": "https://openrouter.ai/api/v1",
         },
-        model_id="anthropic/claude-3.5-haiku",  # Fast and cheap for testing
+        model_id=selected_model,
     )
 
 
-def create_agent(agent_type: str, tools: Optional[List[Any]] = None) -> Agent:
-    """Create a single Strands agent by type."""
+def get_available_models() -> List[Dict[str, Any]]:
+    """Get list of available AI models with their info."""
+    return [{"id": model_id, **info} for model_id, info in AI_MODELS.items()]
+
+
+def create_agent(
+    agent_type: str, tools: Optional[List[Any]] = None, model_id: Optional[str] = None
+) -> Agent:
+    """Create a single Strands agent by type.
+
+    Args:
+        agent_type: The agent type (scout, sage, etc.)
+        tools: Optional list of tools for the agent
+        model_id: Optional model ID to use (uses DEFAULT_MODEL if not specified)
+    """
     config = AGENT_CONFIGS.get(agent_type)
     if not config:
         raise ValueError(f"Unknown agent type: {agent_type}")
 
-    model = get_model()
+    model = get_model(model_id)
     agent_tools = tools if tools is not None else []
 
     return Agent(
@@ -245,6 +342,7 @@ def create_agent(agent_type: str, tools: Optional[List[Any]] = None) -> Agent:
         system_prompt=config["system_prompt"],
         model=model,
         tools=agent_tools,
+        callback_handler=None,  # Disable default callback for streaming
     )
 
 
@@ -528,6 +626,105 @@ class AgentOrchestrator:
                 "agent": agent_type,
                 "handoffs": [agent_type],
                 "status": "error",
+            }
+
+    async def stream_query(
+        self,
+        query: str,
+        preferred_agent: Optional[str] = None,
+        model_id: Optional[str] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Stream a query response using Strands Agents stream_async.
+
+        Args:
+            query: The user's question
+            preferred_agent: Optional agent type to route to
+            model_id: Optional model ID for this user's preference
+
+        Yields events with structure:
+        - {"type": "start", "agent": agent_type, "model": model_id}
+        - {"type": "chunk", "data": text_chunk}
+        - {"type": "done", "agent": agent_type, "response": full_response}
+        - {"type": "error", "message": error_message}
+        """
+        # Route to appropriate agent
+        agent_type = preferred_agent or route_to_agent(query)
+
+        # If user has a model preference, create agent with that model
+        # Otherwise use cached agent with default model
+        if model_id and model_id != DEFAULT_MODEL:
+            # Create agent on-the-fly with user's preferred model
+            try:
+                agent = create_agent(agent_type, self.tools, model_id)
+                logger.info(f"Created agent {agent_type} with user model: {model_id}")
+            except Exception as e:
+                logger.error(f"Failed to create agent with model {model_id}: {e}")
+                agent = self.agents.get(agent_type) or self.agents.get("maven")
+        else:
+            agent = self.agents.get(agent_type) or self.agents.get("maven")
+
+        if agent is None:
+            yield {
+                "type": "error",
+                "message": "No agent available to handle this request.",
+                "agent": "maven",
+            }
+            return
+
+        selected_model = model_id or DEFAULT_MODEL
+        logger.info(
+            f"Streaming with {agent_type} (model: {selected_model}): {query[:50]}..."
+        )
+
+        # Send start event
+        yield {
+            "type": "start",
+            "agent": agent_type,
+            "model": selected_model,
+        }
+
+        full_response = ""
+
+        try:
+            # Use Strands Agents stream_async for streaming
+            async for event in agent.stream_async(query):
+                if "data" in event:
+                    chunk = event["data"]
+                    full_response += chunk
+                    yield {
+                        "type": "chunk",
+                        "data": chunk,
+                    }
+                elif "current_tool_use" in event and event["current_tool_use"].get(
+                    "name"
+                ):
+                    # Tool usage notification
+                    yield {
+                        "type": "tool",
+                        "tool": event["current_tool_use"]["name"],
+                    }
+
+            # Send completion event
+            yield {
+                "type": "done",
+                "agent": agent_type,
+                "response": full_response,
+            }
+
+            logger.info(
+                f"Stream completed for {agent_type}: {len(full_response)} chars"
+            )
+
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            yield {
+                "type": "error",
+                "message": str(e),
+                "agent": agent_type,
             }
 
     def get_agent_info(self, agent_type: str) -> Optional[Dict[str, str]]:

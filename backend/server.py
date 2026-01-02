@@ -14,14 +14,23 @@ import uuid
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+import json
 
 # Load environment variables
 load_dotenv(dotenv_path="../.env.local")
 load_dotenv()
 
-from agents import get_orchestrator, route_to_agent, AGENT_CONFIGS
+from agents import (
+    get_orchestrator,
+    route_to_agent,
+    AGENT_CONFIGS,
+    AI_MODELS,
+    DEFAULT_MODEL,
+    get_available_models,
+)
 import database as db
 
 # Configure logging
@@ -36,6 +45,7 @@ class ChatRequest(BaseModel):
     use_swarm: bool = (
         False  # Whether to use swarm collaboration (disabled by default for speed)
     )
+    model_id: Optional[str] = None  # Optional: user's preferred AI model
 
 
 class ChatResponse(BaseModel):
@@ -257,6 +267,16 @@ async def health_check():
     return {"status": "healthy", "service": "agentverse-api"}
 
 
+@app.get("/models")
+@app.get("/api/models")
+async def list_models():
+    """List available AI models with pricing info."""
+    return {
+        "models": get_available_models(),
+        "default": DEFAULT_MODEL,
+    }
+
+
 @app.get("/agents", response_model=List[AgentInfo])
 @app.get("/api/agents", response_model=List[AgentInfo])
 async def list_agents():
@@ -333,6 +353,54 @@ async def chat(request: ChatRequest):
 
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Streaming chat endpoint for real-time responses
+@app.post("/chat/stream")
+@app.post("/api/chat/stream")
+async def chat_stream(request: ChatRequest):
+    """
+    Stream a message response from the agent system.
+
+    Returns Server-Sent Events (SSE) with the following event types:
+    - start: {"type": "start", "agent": "agent_type", "model": "model_id"}
+    - chunk: {"type": "chunk", "data": "text chunk"}
+    - done: {"type": "done", "agent": "agent_type", "response": "full response"}
+    - error: {"type": "error", "message": "error message"}
+    """
+    model_display = request.model_id or DEFAULT_MODEL
+    logger.info(
+        f"Streaming chat request (model: {model_display}): '{request.message[:50]}...'"
+    )
+
+    async def generate():
+        try:
+            orchestrator = get_orchestrator(use_swarm=False)
+
+            async for event in orchestrator.stream_query(
+                query=request.message,
+                preferred_agent=request.agent,
+                model_id=request.model_id,
+            ):
+                # Format as SSE
+                yield f"data: {json.dumps(event)}\n\n"
+
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
 
 
 # Legacy endpoint for compatibility with existing frontend
@@ -472,6 +540,93 @@ async def update_user(user_id: str, request: UpdateUserRequest):
     except Exception as e:
         logger.error(f"Failed to update user: {e}")
         raise HTTPException(status_code=500, detail="Failed to update user")
+
+
+# =============================================================================
+# USER SETTINGS API ENDPOINTS
+# =============================================================================
+
+
+class UserSettingsRequest(BaseModel):
+    audio_enabled: Optional[bool] = None
+    video_enabled: Optional[bool] = None
+    volume: Optional[int] = None
+    theme: Optional[str] = None
+    show_player_names: Optional[bool] = None
+    preferred_ai_model: Optional[str] = None
+    model_temperature: Optional[float] = None
+
+
+class UserSettingsResponse(BaseModel):
+    user_id: str
+    audio_enabled: bool
+    video_enabled: bool
+    volume: int
+    theme: str
+    show_player_names: bool
+    preferred_ai_model: str
+    model_temperature: float
+
+
+@app.get("/api/users/{user_id}/settings", response_model=UserSettingsResponse)
+async def get_user_settings(user_id: str):
+    """Get user settings including AI model preference."""
+    try:
+        settings = await db.get_user_settings(user_id)
+        if not settings:
+            # Create default settings if not exists
+            settings = await db.update_user_settings(user_id)
+        return UserSettingsResponse(
+            user_id=str(settings["user_id"]),
+            audio_enabled=settings["audio_enabled"],
+            video_enabled=settings["video_enabled"],
+            volume=settings["volume"],
+            theme=settings["theme"],
+            show_player_names=settings["show_player_names"],
+            preferred_ai_model=settings["preferred_ai_model"],
+            model_temperature=float(settings["model_temperature"]),
+        )
+    except Exception as e:
+        logger.error(f"Failed to get user settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user settings")
+
+
+@app.patch("/api/users/{user_id}/settings", response_model=UserSettingsResponse)
+async def update_user_settings(user_id: str, request: UserSettingsRequest):
+    """Update user settings including AI model preference."""
+    try:
+        # Validate model_id if provided
+        if request.preferred_ai_model and request.preferred_ai_model not in AI_MODELS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid model. Available models: {list(AI_MODELS.keys())}",
+            )
+
+        settings = await db.update_user_settings(
+            user_id=user_id,
+            audio_enabled=request.audio_enabled,
+            video_enabled=request.video_enabled,
+            volume=request.volume,
+            theme=request.theme,
+            show_player_names=request.show_player_names,
+            preferred_ai_model=request.preferred_ai_model,
+            model_temperature=request.model_temperature,
+        )
+        return UserSettingsResponse(
+            user_id=str(settings["user_id"]),
+            audio_enabled=settings["audio_enabled"],
+            video_enabled=settings["video_enabled"],
+            volume=settings["volume"],
+            theme=settings["theme"],
+            show_player_names=settings["show_player_names"],
+            preferred_ai_model=settings["preferred_ai_model"],
+            model_temperature=float(settings["model_temperature"]),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update user settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user settings")
 
 
 # =============================================================================

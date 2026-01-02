@@ -583,6 +583,23 @@
       30% { transform: translateY(-4px); opacity: 1; }
     }
 
+    /* Streaming message indicator */
+    .chat-message.streaming .bubble {
+      border-left: 2px solid #e94560;
+    }
+    
+    .chat-message.streaming .streaming-content::after {
+      content: '|';
+      animation: cursor-blink 0.8s infinite;
+      color: #e94560;
+      font-weight: bold;
+    }
+    
+    @keyframes cursor-blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
     /* Welcome message */
     .welcome-message {
       text-align: center;
@@ -943,6 +960,53 @@
 
     .form-row input[type="text"]::placeholder {
       color: #555;
+    }
+
+    /* Model Select Dropdown */
+    .model-select {
+      width: 100%;
+      background: #0d0d14;
+      border: 1px solid #2a2a3e;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #fff;
+      font-size: 0.9rem;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .model-select:focus {
+      border-color: #e94560;
+    }
+
+    .model-select option {
+      background: #1a1a28;
+      color: #fff;
+      padding: 8px;
+    }
+
+    .model-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: rgba(233, 69, 96, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(233, 69, 96, 0.2);
+    }
+
+    .model-cost {
+      font-size: 0.8rem;
+      color: #27ae60;
+      font-weight: 600;
+    }
+
+    .model-desc {
+      font-size: 0.75rem;
+      color: #888;
+      text-align: right;
     }
 
     .avatar-picker {
@@ -1855,6 +1919,28 @@
           </div>
         </div>
         
+        <!-- AI Model Section -->
+        <div class="settings-group">
+          <h4>AI Model</h4>
+          
+          <div class="form-row">
+            <label for="settings-ai-model">Preferred Model</label>
+            <select id="settings-ai-model" class="model-select">
+              <option value="mistralai/mistral-nemo" data-cost="$0.13/1M">Mistral Nemo - Fast & Cheap (Recommended)</option>
+              <option value="google/gemini-2.0-flash-lite-001" data-cost="$0.08-0.30/1M">Gemini 2.0 Flash Lite - Ultra Fast</option>
+              <option value="qwen/qwen-turbo" data-cost="$0.20/1M">Qwen Turbo - Multilingual</option>
+              <option value="openai/gpt-4.1-nano" data-cost="$0.10-0.40/1M">GPT-4.1 Nano - Compact GPT-4</option>
+              <option value="anthropic/claude-3.5-haiku" data-cost="$0.80-4/1M">Claude 3.5 Haiku - High Quality</option>
+              <option value="anthropic/claude-sonnet-4" data-cost="$3-15/1M">Claude Sonnet 4 - Premium</option>
+            </select>
+          </div>
+          
+          <div class="model-info" id="model-info">
+            <span class="model-cost" id="model-cost">$0.13/1M tokens</span>
+            <span class="model-desc" id="model-desc">Fast & cheap, great for most tasks</span>
+          </div>
+        </div>
+        
         <!-- Account Info Section -->
         <div class="settings-group">
           <h4>Account Info</h4>
@@ -2393,13 +2479,27 @@
     // User Settings Modal
     // ==========================================
     
+    // AI Model info for display
+    const AI_MODEL_INFO = {
+      'mistralai/mistral-nemo': { cost: '$0.13/1M tokens', desc: 'Fast & cheap, great for most tasks' },
+      'google/gemini-2.0-flash-lite-001': { cost: '$0.08-0.30/1M tokens', desc: 'Ultra-fast, massive context window' },
+      'qwen/qwen-turbo': { cost: '$0.20/1M tokens', desc: 'Excellent multilingual support' },
+      'openai/gpt-4.1-nano': { cost: '$0.10-0.40/1M tokens', desc: 'Compact but capable GPT-4 variant' },
+      'anthropic/claude-3.5-haiku': { cost: '$0.80-4/1M tokens', desc: 'High quality, balanced performance' },
+      'anthropic/claude-sonnet-4': { cost: '$3-15/1M tokens', desc: 'Premium quality, complex reasoning' },
+    };
+    
     let currentUserSettings = {
       id: null,
       display_name: 'Player',
       avatar_sprite: 'brendan',
+      preferred_ai_model: 'mistralai/mistral-nemo',
       created_at: null,
       last_seen_at: null
     };
+    
+    // Store current selected model in window for easy access by game
+    window.userPreferredModel = 'mistralai/mistral-nemo';
 
     // Load user data from DATABASE (not localStorage)
     async function loadUserSettings() {
@@ -2414,18 +2514,21 @@
       if (userId.startsWith('offline-')) {
         const offlineName = localStorage.getItem('arkagentic_offline_name');
         const offlineAvatar = localStorage.getItem('arkagentic_offline_avatar');
+        const offlineModel = localStorage.getItem('arkagentic_offline_model') || 'mistralai/mistral-nemo';
         currentUserSettings = {
           id: userId,
           display_name: offlineName || 'Player',
           avatar_sprite: offlineAvatar || 'brendan',
+          preferred_ai_model: offlineModel,
           created_at: null,
           last_seen_at: null
         };
+        window.userPreferredModel = offlineModel;
         return currentUserSettings;
       }
       
       try {
-        // Fetch fresh data from database
+        // Fetch user profile
         const response = await fetch(`/api/users/${userId}`);
         if (response.ok) {
           const user = await response.json();
@@ -2433,9 +2536,23 @@
             id: user.id,
             display_name: user.display_name || 'Player',
             avatar_sprite: user.avatar_sprite || 'brendan',
+            preferred_ai_model: 'mistralai/mistral-nemo', // Default
             created_at: user.created_at || null,
             last_seen_at: user.last_seen_at || null
           };
+          
+          // Try to fetch user settings (includes AI model)
+          try {
+            const settingsRes = await fetch(`/api/users/${userId}/settings`);
+            if (settingsRes.ok) {
+              const settings = await settingsRes.json();
+              currentUserSettings.preferred_ai_model = settings.preferred_ai_model || 'mistralai/mistral-nemo';
+            }
+          } catch (settingsErr) {
+            console.log('Settings not available, using defaults');
+          }
+          
+          window.userPreferredModel = currentUserSettings.preferred_ai_model;
         }
       } catch (e) {
         console.error('Failed to fetch user settings from database:', e);
@@ -2459,6 +2576,13 @@
         }
       });
       
+      // AI Model selection
+      const modelSelect = document.getElementById('settings-ai-model');
+      if (modelSelect) {
+        modelSelect.value = settings.preferred_ai_model || 'mistralai/mistral-nemo';
+        updateModelInfo(modelSelect.value);
+      }
+      
       // Account info
       document.getElementById('settings-user-id').textContent = 
         settings.id ? settings.id.substring(0, 8) + '...' : 'Not logged in';
@@ -2469,12 +2593,25 @@
       document.getElementById('settings-last-login').textContent = 
         settings.last_seen_at ? new Date(settings.last_seen_at).toLocaleString() : 'Now';
     }
+    
+    // Update model info display when selection changes
+    function updateModelInfo(modelId) {
+      const info = AI_MODEL_INFO[modelId] || { cost: 'Unknown', desc: 'Unknown model' };
+      document.getElementById('model-cost').textContent = info.cost;
+      document.getElementById('model-desc').textContent = info.desc;
+    }
+    
+    // Listen for model dropdown changes
+    document.getElementById('settings-ai-model')?.addEventListener('change', (e) => {
+      updateModelInfo(e.target.value);
+    });
 
     // Save user settings to DATABASE
     async function saveUserSettings() {
       const displayName = document.getElementById('settings-display-name').value.trim();
       const selectedAvatar = document.querySelector('.avatar-option.selected');
       const avatarSprite = selectedAvatar ? selectedAvatar.dataset.avatar : 'brendan';
+      const selectedModel = document.getElementById('settings-ai-model')?.value || 'mistralai/mistral-nemo';
       
       if (!displayName) {
         alert('Please enter a display name');
@@ -2498,8 +2635,11 @@
         if (userId.startsWith('offline-')) {
           localStorage.setItem('arkagentic_offline_name', displayName);
           localStorage.setItem('arkagentic_offline_avatar', avatarSprite);
+          localStorage.setItem('arkagentic_offline_model', selectedModel);
           currentUserSettings.display_name = displayName;
           currentUserSettings.avatar_sprite = avatarSprite;
+          currentUserSettings.preferred_ai_model = selectedModel;
+          window.userPreferredModel = selectedModel;
         } else {
           // Online user - update database
           const response = await fetch(`/api/users/${userId}`, {
@@ -2516,17 +2656,31 @@
           });
           
           if (!response.ok) {
-            throw new Error(`Failed to update: ${response.status}`);
+            throw new Error(`Failed to update profile: ${response.status}`);
           }
           
           const updatedUser = await response.json();
+          
+          // Also update AI model preference
+          try {
+            await fetch(`/api/users/${userId}/settings`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ preferred_ai_model: selectedModel })
+            });
+          } catch (settingsErr) {
+            console.log('Settings update failed, model saved locally');
+          }
+          
           currentUserSettings = {
             id: updatedUser.id,
             display_name: updatedUser.display_name,
             avatar_sprite: updatedUser.avatar_sprite,
+            preferred_ai_model: selectedModel,
             created_at: updatedUser.created_at,
             last_seen_at: new Date().toISOString()
           };
+          window.userPreferredModel = selectedModel;
         }
         
         // Notify the game about the changes
@@ -2539,7 +2693,7 @@
         
         // Dispatch custom event for other listeners
         window.dispatchEvent(new CustomEvent('user-settings-updated', {
-          detail: { displayName, avatarSprite }
+          detail: { displayName, avatarSprite, preferredModel: selectedModel }
         }));
         
         saveBtn.textContent = 'Saved!';

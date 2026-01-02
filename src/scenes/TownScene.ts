@@ -1299,12 +1299,12 @@ export class TownScene extends Scene {
     this.showTypingIndicator();
     this.updateChatStatus(`${mainAgentConfig?.emoji || ''} ${mainAgentConfig?.name || 'Agent'} is typing...`);
 
-    // Phase 4: Call the API
+    // Phase 4: Call the API (streaming handles adding message to chat)
     try {
       const result = await this.callAgentAPI(query, mainAgentType);
       
-      // Remove typing indicator
-      this.removeTypingIndicator();
+      // Typing indicator is already removed by streaming
+      // No need to call removeTypingIndicator() again
       
       // Phase 5: Show handoffs if multiple agents collaborated
       if (result.handoffs && result.handoffs.length > 1) {
@@ -1326,14 +1326,18 @@ export class TownScene extends Scene {
         });
       }
       
-      // Phase 6: Show the response in chat and game
+      // Phase 6: Show the response in game bubble (chat message already added by streaming)
       const respondingAgent = this.agents.get(result.agent);
       if (respondingAgent && result.response) {
         // Show truncated version in game bubble
         respondingAgent.speak(this.truncateText(result.response, 80));
         
-        // Show full response in chat panel
-        this.addChatMessage('agent', result.response, result.agent);
+        // Note: Chat message is already added by streaming in callAgentAPI
+        // Only add if fallback was used (no streaming message exists)
+        const existingStreamingMsg = document.querySelector('.chat-message.agent:last-child .streaming-content');
+        if (!existingStreamingMsg) {
+          this.addChatMessage('agent', result.response, result.agent);
+        }
       }
 
       this.conversationHistory.push({
@@ -1431,14 +1435,18 @@ export class TownScene extends Scene {
     handoffs: string[];
   }> {
     try {
-      // Use the new /chat endpoint with Strands Agents
-      const response = await fetch(`${API_BASE_URL}/chat`, {
+      // Get user's preferred AI model
+      const userModel = (window as any).userPreferredModel || 'mistralai/mistral-nemo';
+      
+      // Use streaming endpoint for real-time response
+      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
           agent: agentType,
-          use_swarm: false, // Single agent for now, can enable swarm later
+          use_swarm: false,
+          model_id: userModel,
         }),
       });
 
@@ -1446,14 +1454,125 @@ export class TownScene extends Scene {
         throw new Error(`API returned ${response.status}`);
       }
 
-      const data = await response.json();
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+      let respondingAgent = agentType;
+      
+      // Get the chat messages container for streaming updates
+      const chatMessages = document.getElementById('chat-messages');
+      let streamingMessageDiv: HTMLElement | null = null;
+      
+      // Create a streaming message bubble
+      if (chatMessages) {
+        // Remove typing indicator first
+        this.removeTypingIndicator();
+        
+        const agentConfig = AGENTS[agentType as keyof typeof AGENTS];
+        const iconSpan = agentConfig ? getIconSpan(agentConfig.emoji, 14) : '';
+        const agentName = agentConfig ? `${iconSpan} ${agentConfig.name}` : 'Agent';
+        const now = new Date();
+        const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        streamingMessageDiv = document.createElement('div');
+        streamingMessageDiv.className = 'chat-message agent streaming';
+        streamingMessageDiv.innerHTML = `
+          <div class="agent-name">${agentName}</div>
+          <div class="bubble">
+            <p class="streaming-content"></p>
+          </div>
+          <div class="timestamp">${timestamp}</div>
+        `;
+        chatMessages.appendChild(streamingMessageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+      
+      const streamingContent = streamingMessageDiv?.querySelector('.streaming-content');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'chunk' && data.data) {
+                fullResponse += data.data;
+                
+                // Update streaming message in real-time
+                if (streamingContent) {
+                  streamingContent.textContent = fullResponse;
+                  chatMessages!.scrollTop = chatMessages!.scrollHeight;
+                }
+              } else if (data.type === 'start') {
+                respondingAgent = data.agent || agentType;
+                console.log(`[Stream] Started with agent: ${respondingAgent}`);
+              } else if (data.type === 'done') {
+                respondingAgent = data.agent || agentType;
+                if (data.response) {
+                  fullResponse = data.response;
+                }
+                console.log(`[Stream] Completed: ${fullResponse.length} chars`);
+              } else if (data.type === 'error') {
+                console.error('[Stream] Error:', data.message);
+                throw new Error(data.message);
+              }
+            } catch (parseError) {
+              // Ignore parse errors for incomplete chunks
+              if (line.trim() && !line.includes('{"type"')) {
+                console.warn('Failed to parse SSE:', line);
+              }
+            }
+          }
+        }
+      }
+      
+      // Remove streaming class when done
+      if (streamingMessageDiv) {
+        streamingMessageDiv.classList.remove('streaming');
+      }
+
       return {
-        response: data.response || 'No response received',
-        agent: data.agent || agentType,
-        handoffs: data.handoffs || [agentType],
+        response: fullResponse || 'No response received',
+        agent: respondingAgent,
+        handoffs: [respondingAgent],
       };
     } catch (error) {
       console.error('API call failed:', error);
+      // Fallback to non-streaming endpoint
+      try {
+        const fallbackResponse = await fetch(`${API_BASE_URL}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: query,
+            agent: agentType,
+            use_swarm: false,
+          }),
+        });
+        
+        if (fallbackResponse.ok) {
+          const data = await fallbackResponse.json();
+          return {
+            response: data.response || 'No response received',
+            agent: data.agent || agentType,
+            handoffs: data.handoffs || [agentType],
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
+      
       // Return a mock response for demo purposes
       return {
         response: `[${AGENTS[agentType as keyof typeof AGENTS]?.name || agentType}] I'm ready to help! However, the backend server isn't running. Start it with: cd backend && source venv/bin/activate && python server.py`,

@@ -564,3 +564,73 @@ async def cleanup_stale_sessions(days: int = 30):
             days,
         )
         return result
+
+
+# =============================================================================
+# USER SETTINGS QUERIES
+# =============================================================================
+
+
+async def get_user_settings(user_id: str) -> Optional[Dict[str, Any]]:
+    """Get user settings."""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT user_id, audio_enabled, video_enabled, volume, theme, 
+                   show_player_names, preferred_ai_model, model_temperature, updated_at
+            FROM user_settings WHERE user_id = $1
+            """,
+            user_id,
+        )
+        return dict(row) if row else None
+
+
+async def update_user_settings(
+    user_id: str,
+    audio_enabled: Optional[bool] = None,
+    video_enabled: Optional[bool] = None,
+    volume: Optional[int] = None,
+    theme: Optional[str] = None,
+    show_player_names: Optional[bool] = None,
+    preferred_ai_model: Optional[str] = None,
+    model_temperature: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Update or create user settings."""
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO user_settings (
+                user_id, audio_enabled, video_enabled, volume, theme,
+                show_player_names, preferred_ai_model, model_temperature
+            )
+            VALUES ($1, 
+                    COALESCE($2, true), 
+                    COALESCE($3, true), 
+                    COALESCE($4, 100), 
+                    COALESCE($5, 'dark'),
+                    COALESCE($6, true),
+                    COALESCE($7, 'anthropic/claude-3.5-haiku'),
+                    COALESCE($8, 0.7)
+            )
+            ON CONFLICT (user_id) DO UPDATE SET
+                audio_enabled = COALESCE($2, user_settings.audio_enabled),
+                video_enabled = COALESCE($3, user_settings.video_enabled),
+                volume = COALESCE($4, user_settings.volume),
+                theme = COALESCE($5, user_settings.theme),
+                show_player_names = COALESCE($6, user_settings.show_player_names),
+                preferred_ai_model = COALESCE($7, user_settings.preferred_ai_model),
+                model_temperature = COALESCE($8, user_settings.model_temperature),
+                updated_at = NOW()
+            RETURNING user_id, audio_enabled, video_enabled, volume, theme, 
+                      show_player_names, preferred_ai_model, model_temperature, updated_at
+            """,
+            user_id,
+            audio_enabled,
+            video_enabled,
+            volume,
+            theme,
+            show_player_names,
+            preferred_ai_model,
+            model_temperature,
+        )
+        return dict(row)
