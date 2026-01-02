@@ -47,6 +47,11 @@ export function routeQuery(query: string): string[] {
     agents.push('trends');
   }
 
+  // Check for freelancing/business keywords -> Gandalfius
+  if (/freelance|freelancing|pricing|rates?|clients?|proposal|scope|hourly|value.based|contract|charge|business|entrelancer|raise rates|budget/.test(lowerQuery)) {
+    agents.push('gandalfius');
+  }
+
   // Default to Maven if no specific agent matched
   if (agents.length === 0) {
     agents.push('maven');

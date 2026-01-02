@@ -481,6 +481,7 @@ export class TownScene extends Scene {
       { x: 200, y: 300 },  // Chronicle
       { x: 350, y: 300 },  // Trends
       { x: 275, y: 350 },  // Maven (center-ish)
+      { x: 420, y: 280 },  // Gandalfius (near right side, like a wizard's corner)
     ];
 
     const agentTypes = Object.keys(AGENTS) as Array<keyof typeof AGENTS>;
@@ -1413,6 +1414,7 @@ export class TownScene extends Scene {
       chronicle: { x: 200, y: 300 },
       trends: { x: 350, y: 300 },
       maven: { x: 275, y: 350 },
+      gandalfius: { x: 420, y: 280 },
     };
 
     this.agents.forEach((agent, agentType) => {

@@ -10,6 +10,7 @@ export const AGENT_COLORS = {
   chronicle: 0x27ae60, // Green
   trends: 0xe74c3c,   // Red
   maven: 0xf39c12,    // Orange
+  gandalfius: 0x8e44ad, // Deep Purple (wizard vibes)
 };
 
 // Agent definitions - mapping our 5 agents to Pokemon sprites
@@ -53,6 +54,14 @@ export const AGENTS = {
     emoji: '👋',         // Keep for backward compatibility during transition
     role: 'General Assistant',
     keywords: ['hello', 'hi', 'help', 'weather', 'general'],
+  },
+  gandalfius: {
+    name: 'Gandalfius',
+    sprite: 'joseph',    // Wise wizard character
+    icon: 'wand-2',      // Lucide Wand icon
+    emoji: '🧙‍♂️',         // Wizard emoji
+    role: 'Freelancing Wizard',
+    keywords: ['freelance', 'pricing', 'rates', 'clients', 'proposal', 'scope', 'business', 'value', 'charge', 'hourly', 'contract'],
   },
 };
 
