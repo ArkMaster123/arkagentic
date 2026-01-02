@@ -58,7 +58,7 @@ export class JitsiManager {
   private api: any = null;
   private currentZone: JitsiZone | null = null;
   private container: HTMLElement | null = null;
-  private config: JitsiConfig;
+  public config: JitsiConfig;
   private isJitsiLoaded: boolean = false;
   private listeners: Map<string, JitsiEventCallback[]> = new Map();
   
