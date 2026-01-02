@@ -296,6 +296,34 @@
       border-radius: 12px;
       box-shadow: 0 0 40px rgba(233, 69, 96, 0.2);
       overflow: hidden;
+      transition: opacity 0.2s, border-color 0.2s;
+    }
+
+    /* Visual indicator when game controls are disabled (typing in chat) */
+    #game-area.controls-disabled #game {
+      border-color: #666;
+      opacity: 0.7;
+    }
+
+    #game-area.controls-disabled::after {
+      content: 'Click here to control game';
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 100;
+      animation: pulse-hint 2s infinite;
+    }
+
+    @keyframes pulse-hint {
+      0%, 100% { opacity: 0.8; }
+      50% { opacity: 1; }
     }
 
     #game canvas {
@@ -1877,6 +1905,50 @@
   <script type="module" src="/src/main.tsx"></script>
   <script type="module" src="/src/index.ts"></script>
   <script>
+    // ==========================================
+    // GAME FOCUS SYSTEM
+    // ==========================================
+    // When typing in sidebar, game controls are disabled
+    // Click on game canvas to re-enable game controls
+    
+    window.gameControlsEnabled = true;
+    
+    // Disable game controls when clicking on sidebar inputs
+    document.addEventListener('focusin', (e) => {
+      const target = e.target;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        window.gameControlsEnabled = false;
+        // Add visual indicator
+        const gameArea = document.getElementById('game-area');
+        if (gameArea) gameArea.classList.add('controls-disabled');
+      }
+    });
+    
+    // Re-enable game controls when clicking on game area
+    document.getElementById('game-area')?.addEventListener('click', (e) => {
+      // Don't re-enable if clicking on a button or control
+      if (e.target.tagName === 'BUTTON') return;
+      
+      window.gameControlsEnabled = true;
+      document.getElementById('game-area')?.classList.remove('controls-disabled');
+      
+      // Blur any focused input
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        document.activeElement.blur();
+      }
+    });
+    
+    // Also re-enable on ESC key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.gameControlsEnabled = true;
+        document.getElementById('game-area')?.classList.remove('controls-disabled');
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+          document.activeElement.blur();
+        }
+      }
+    });
+
     // Agent data for modal
     const agentData = {
       scout: {

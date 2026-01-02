@@ -143,24 +143,20 @@ export class Player extends Actor {
   }
 
   /**
-   * Check if an HTML input element is currently focused
-   * Used to prevent game input when user is typing in chat
+   * Check if game controls are currently enabled
+   * Controls are disabled when user is typing in chat sidebar
    */
-  private isInputFocused(): boolean {
-    const activeElement = document.activeElement;
-    if (!activeElement) return false;
-    
-    const tagName = activeElement.tagName.toLowerCase();
-    return tagName === 'input' || tagName === 'textarea' || (activeElement as HTMLElement).isContentEditable;
+  private areControlsEnabled(): boolean {
+    return (window as any).gameControlsEnabled !== false;
   }
 
   update(): void {
     const body = this.getBody();
     body.setVelocity(0);
 
-    // Don't process game input if user is typing in an input field
-    if (this.isInputFocused()) {
-      // Still update animation to idle when typing
+    // Don't process game input if controls are disabled (user clicked on chat)
+    if (!this.areControlsEnabled()) {
+      // Still update animation to idle when controls disabled
       if (this.isMoving) {
         this.isMoving = false;
         this.anims.play(`player-idle-${this.direction}`, true);

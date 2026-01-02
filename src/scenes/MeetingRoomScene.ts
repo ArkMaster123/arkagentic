@@ -457,15 +457,11 @@ export class MeetingRoomScene extends Scene {
   }
 
   /**
-   * Check if an HTML input element is currently focused
-   * Used to prevent game input when user is typing in chat
+   * Check if game controls are currently disabled
+   * Controls are disabled when user is typing in chat sidebar
    */
-  private isInputFocused(): boolean {
-    const activeElement = document.activeElement;
-    if (!activeElement) return false;
-    
-    const tagName = activeElement.tagName.toLowerCase();
-    return tagName === 'input' || tagName === 'textarea' || (activeElement as HTMLElement).isContentEditable;
+  private areControlsDisabled(): boolean {
+    return (window as any).gameControlsEnabled === false;
   }
 
   private setupInput(): void {
@@ -476,7 +472,7 @@ export class MeetingRoomScene extends Scene {
 
     // SPACE to manually join/leave Jitsi
     this.input.keyboard?.on('keydown-SPACE', () => {
-      if (this.isInputFocused()) return; // Don't trigger when typing
+      if (this.areControlsDisabled()) return; // Don't trigger when typing in chat
       
       if (this.currentJitsiZone && this.jitsiManager) {
         if (this.jitsiManager.isInRoom()) {
@@ -494,7 +490,7 @@ export class MeetingRoomScene extends Scene {
 
     // J as alternative to join/leave Jitsi
     this.input.keyboard?.on('keydown-J', () => {
-      if (this.isInputFocused()) return; // Don't trigger when typing
+      if (this.areControlsDisabled()) return; // Don't trigger when typing in chat
       
       if (this.currentJitsiZone && this.jitsiManager) {
         if (this.jitsiManager.isInRoom()) {
