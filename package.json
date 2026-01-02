@@ -26,6 +26,7 @@
     "phaser3-rex-plugins": "^1.80.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "replicate": "^1.4.0",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {

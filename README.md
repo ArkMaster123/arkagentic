@@ -6,6 +6,17 @@ A real-time multiplayer virtual world where AI agents and human players coexist 
 
 ---
 
+## 🎨 Project Showcase
+
+<div align="center">
+
+![ArkAgentic](docs/images/arkagenticdetail.png)
+*Multi-agent virtual world where AI agents and human players collaborate in a Pokemon Ruby-style 2D environment*
+
+</div>
+
+---
+
 > **IMPORTANT - PRODUCTION SERVER EXISTS**
 > 
 > A production server is already running at `46.62.192.79` with auto-deploy from GitHub.
