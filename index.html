@@ -2549,46 +2549,68 @@
       return activeScenes[0] || null;
     }
 
-    // Zoom controls
-    document.getElementById('zoom-out').addEventListener('click', () => {
-      const scene = getActiveScene();
-      if (scene && scene.cameras && scene.cameras.main) {
-        const cam = scene.cameras.main;
-        const newZoom = Math.max(1, cam.zoom - 0.5);
-        cam.setZoom(newZoom);
-        document.getElementById('zoom-level').textContent = newZoom + 'x';
-        document.getElementById('zoom-slider').value = newZoom;
-        document.getElementById('zoom-value').textContent = newZoom + 'x';
-      }
-    });
+    // Zoom controls (with null checks for mobile where these may not exist)
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomSlider = document.getElementById('zoom-slider');
+    const soundSlider = document.getElementById('sound-slider');
+    
+    if (zoomOutBtn) {
+      zoomOutBtn.addEventListener('click', () => {
+        const scene = getActiveScene();
+        if (scene && scene.cameras && scene.cameras.main) {
+          const cam = scene.cameras.main;
+          const newZoom = Math.max(1, cam.zoom - 0.5);
+          cam.setZoom(newZoom);
+          const zoomLevel = document.getElementById('zoom-level');
+          const zoomSliderEl = document.getElementById('zoom-slider');
+          const zoomValue = document.getElementById('zoom-value');
+          if (zoomLevel) zoomLevel.textContent = newZoom + 'x';
+          if (zoomSliderEl) zoomSliderEl.value = newZoom;
+          if (zoomValue) zoomValue.textContent = newZoom + 'x';
+        }
+      });
+    }
 
-    document.getElementById('zoom-in').addEventListener('click', () => {
-      const scene = getActiveScene();
-      if (scene && scene.cameras && scene.cameras.main) {
-        const cam = scene.cameras.main;
-        const newZoom = Math.min(4, cam.zoom + 0.5);
-        cam.setZoom(newZoom);
-        document.getElementById('zoom-level').textContent = newZoom + 'x';
-        document.getElementById('zoom-slider').value = newZoom;
-        document.getElementById('zoom-value').textContent = newZoom + 'x';
-      }
-    });
+    if (zoomInBtn) {
+      zoomInBtn.addEventListener('click', () => {
+        const scene = getActiveScene();
+        if (scene && scene.cameras && scene.cameras.main) {
+          const cam = scene.cameras.main;
+          const newZoom = Math.min(4, cam.zoom + 0.5);
+          cam.setZoom(newZoom);
+          const zoomLevel = document.getElementById('zoom-level');
+          const zoomSliderEl = document.getElementById('zoom-slider');
+          const zoomValue = document.getElementById('zoom-value');
+          if (zoomLevel) zoomLevel.textContent = newZoom + 'x';
+          if (zoomSliderEl) zoomSliderEl.value = newZoom;
+          if (zoomValue) zoomValue.textContent = newZoom + 'x';
+        }
+      });
+    }
 
     // Zoom slider
-    document.getElementById('zoom-slider').addEventListener('input', (e) => {
-      const newZoom = parseFloat(e.target.value);
-      document.getElementById('zoom-value').textContent = newZoom + 'x';
-      document.getElementById('zoom-level').textContent = newZoom + 'x';
-      const scene = getActiveScene();
-      if (scene && scene.cameras && scene.cameras.main) {
-        scene.cameras.main.setZoom(newZoom);
-      }
-    });
+    if (zoomSlider) {
+      zoomSlider.addEventListener('input', (e) => {
+        const newZoom = parseFloat(e.target.value);
+        const zoomValue = document.getElementById('zoom-value');
+        const zoomLevel = document.getElementById('zoom-level');
+        if (zoomValue) zoomValue.textContent = newZoom + 'x';
+        if (zoomLevel) zoomLevel.textContent = newZoom + 'x';
+        const scene = getActiveScene();
+        if (scene && scene.cameras && scene.cameras.main) {
+          scene.cameras.main.setZoom(newZoom);
+        }
+      });
+    }
 
     // Sound slider (placeholder for future)
-    document.getElementById('sound-slider').addEventListener('input', (e) => {
-      document.getElementById('sound-value').textContent = e.target.value + '%';
-    });
+    if (soundSlider) {
+      soundSlider.addEventListener('input', (e) => {
+        const soundValue = document.getElementById('sound-value');
+        if (soundValue) soundValue.textContent = e.target.value + '%';
+      });
+    }
 
     // ==========================================
     // CHAT TABS & AGENT SELECTION
