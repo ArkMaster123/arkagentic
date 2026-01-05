@@ -2598,25 +2598,35 @@
     let activeTab = 'agent';  // Current tab: 'agent' or 'room'
     let unreadRoomMessages = 0;
 
-    // Tab switching
-    document.querySelectorAll('.chat-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
+    // Tab switching - only target desktop sidebar tabs (not mobile overlay tabs)
+    document.querySelectorAll('#chat-tabs .chat-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const tabName = tab.dataset.tab;
+        console.log('[Chat] Tab clicked:', tabName);
         switchChatTab(tabName);
       });
     });
 
     function switchChatTab(tabName) {
+      console.log('[Chat] Switching to tab:', tabName);
       activeTab = tabName;
       
-      // Update tab buttons
-      document.querySelectorAll('.chat-tab').forEach(t => {
+      // Update tab buttons - only desktop sidebar tabs
+      document.querySelectorAll('#chat-tabs .chat-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.tab === tabName);
       });
       
       // Update content visibility
-      document.getElementById('agent-chat-content').classList.toggle('active', tabName === 'agent');
-      document.getElementById('room-chat-content').classList.toggle('active', tabName === 'room');
+      const agentContent = document.getElementById('agent-chat-content');
+      const roomContent = document.getElementById('room-chat-content');
+      
+      if (agentContent) agentContent.classList.toggle('active', tabName === 'agent');
+      if (roomContent) roomContent.classList.toggle('active', tabName === 'room');
+      
+      console.log('[Chat] Agent content active:', agentContent?.classList.contains('active'));
+      console.log('[Chat] Room content active:', roomContent?.classList.contains('active'));
       
       // Clear unread badge when switching to room tab
       if (tabName === 'room') {
