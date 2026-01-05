@@ -2974,6 +2974,8 @@
     window.toggleMobileChat = function() {
       const overlay = document.getElementById('mobile-chat-overlay');
       const toggle = document.getElementById('mobile-chat-toggle');
+      if (!overlay || !toggle) return;
+      
       if (overlay.classList.contains('active')) {
         overlay.classList.remove('active');
         toggle.style.display = 'block';
@@ -3000,12 +3002,14 @@
       const agentChat = document.getElementById('mobile-agent-chat');
       const roomChat = document.getElementById('mobile-room-chat');
       
-      if (tab === 'agent') {
-        agentChat.style.display = 'flex';
-        roomChat.style.display = 'none';
-      } else {
-        agentChat.style.display = 'none';
-        roomChat.style.display = 'flex';
+      if (agentChat && roomChat) {
+        if (tab === 'agent') {
+          agentChat.style.display = 'flex';
+          roomChat.style.display = 'none';
+        } else {
+          agentChat.style.display = 'none';
+          roomChat.style.display = 'flex';
+        }
       }
     };
 

@@ -1,5 +1,4 @@
 import { Scene, GameObjects } from 'phaser';
-import VirtualJoystick from 'phaser3-rex-plugins/plugins/virtualjoystick.js';
 
 /**
  * Mobile detection utilities
@@ -40,34 +39,52 @@ export interface MobileControlsCallbacks {
 }
 
 /**
+ * Direction state for D-pad
+ */
+interface DirectionState {
+  left: boolean;
+  right: boolean;
+  up: boolean;
+  down: boolean;
+}
+
+/**
  * MobileControlsManager - Provides touch controls for mobile devices
  * 
  * Features:
- * - Virtual joystick (bottom-left) for movement
+ * - D-pad directional buttons (bottom-left) for movement - more reliable than joystick
  * - A/B action buttons (bottom-right) for interactions
+ * - Semi-transparent, touch-friendly design
  * - Auto-enables on mobile devices
- * - Can be manually toggled for testing
  */
 export class MobileControlsManager {
   private scene: Scene;
   private enabled: boolean = false;
   
-  // Virtual joystick (using rex plugin direct import)
-  private joystick: VirtualJoystick | null = null;
-  private joystickBase: GameObjects.Graphics | null = null;
-  private joystickThumb: GameObjects.Graphics | null = null;
+  // D-pad container and buttons
+  private dpadContainer: GameObjects.Container | null = null;
+  private dpadButtons: Map<string, GameObjects.Container> = new Map();
+  
+  // Direction state (which buttons are pressed)
+  private directionState: DirectionState = {
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+  };
   
   // Action buttons
   private buttonA: GameObjects.Container | null = null;
   private buttonB: GameObjects.Container | null = null;
   private callbacks: MobileControlsCallbacks = {};
   
-  // Layout constants
-  private readonly JOYSTICK_RADIUS = 50;
-  private readonly JOYSTICK_MARGIN = 20;
-  private readonly BUTTON_SIZE = 44;
-  private readonly BUTTON_MARGIN = 15;
-  private readonly BUTTON_SPACING = 60;
+  // Layout constants - larger for better touch targets
+  private readonly DPAD_SIZE = 140; // Total D-pad area size
+  private readonly DPAD_BUTTON_SIZE = 44; // Individual button size
+  private readonly DPAD_MARGIN = 20;
+  private readonly BUTTON_SIZE = 50;
+  private readonly BUTTON_MARGIN = 20;
+  private readonly BUTTON_SPACING = 65;
   
   constructor(scene: Scene, autoEnable: boolean = true) {
     this.scene = scene;
@@ -87,13 +104,13 @@ export class MobileControlsManager {
     if (this.enabled) return;
     this.enabled = true;
     
-    this.createJoystick();
+    this.createDpad();
     this.createActionButtons();
     
     // Listen for orientation changes
     window.addEventListener('resize', this.handleResize);
     
-    console.log('[MobileControls] Enabled');
+    console.log('[MobileControls] Enabled - D-pad and action buttons created');
   }
   
   /**
@@ -103,7 +120,7 @@ export class MobileControlsManager {
     if (!this.enabled) return;
     this.enabled = false;
     
-    this.destroyJoystick();
+    this.destroyDpad();
     this.destroyActionButtons();
     
     window.removeEventListener('resize', this.handleResize);
@@ -137,84 +154,139 @@ export class MobileControlsManager {
   }
   
   /**
-   * Get joystick direction state (compatible with keyboard input)
+   * Get direction state (compatible with keyboard input)
    */
-  getDirection(): { left: boolean; right: boolean; up: boolean; down: boolean } {
-    if (!this.joystick || !this.enabled) {
+  getDirection(): DirectionState {
+    if (!this.enabled) {
       return { left: false, right: false, up: false, down: false };
     }
-    
-    return {
-      left: this.joystick.left,
-      right: this.joystick.right,
-      up: this.joystick.up,
-      down: this.joystick.down,
-    };
+    return { ...this.directionState };
   }
   
   /**
-   * Get joystick force (0-1 range)
+   * Create the D-pad control (4 directional buttons in a cross pattern)
    */
-  getForce(): number {
-    if (!this.joystick || !this.enabled) return 0;
-    return Math.min(1, this.joystick.force / this.JOYSTICK_RADIUS);
-  }
-  
-  /**
-   * Get joystick angle in radians
-   */
-  getAngle(): number {
-    if (!this.joystick || !this.enabled) return 0;
-    return this.joystick.rotation;
-  }
-  
-  /**
-   * Create the virtual joystick using direct class instantiation
-   */
-  private createJoystick(): void {
+  private createDpad(): void {
     const camera = this.scene.cameras.main;
-    const gameWidth = camera.width;
     const gameHeight = camera.height;
     
-    // Position in bottom-left (in screen coordinates)
-    const x = this.JOYSTICK_MARGIN + this.JOYSTICK_RADIUS;
-    const y = gameHeight - this.JOYSTICK_MARGIN - this.JOYSTICK_RADIUS;
+    // Position in bottom-left
+    const centerX = this.DPAD_MARGIN + this.DPAD_SIZE / 2;
+    const centerY = gameHeight - this.DPAD_MARGIN - this.DPAD_SIZE / 2;
     
-    // Create base circle (outer ring) using Graphics
-    this.joystickBase = this.scene.add.graphics();
-    this.joystickBase.lineStyle(3, 0x4a90d9, 0.8);
-    this.joystickBase.fillStyle(0x000000, 0.4);
-    this.joystickBase.fillCircle(0, 0, this.JOYSTICK_RADIUS);
-    this.joystickBase.strokeCircle(0, 0, this.JOYSTICK_RADIUS);
-    this.joystickBase.setPosition(x, y);
-    this.joystickBase.setScrollFactor(0);
-    this.joystickBase.setDepth(10000);
+    // Create container for D-pad
+    this.dpadContainer = this.scene.add.container(centerX, centerY);
+    this.dpadContainer.setScrollFactor(0);
+    this.dpadContainer.setDepth(10000);
     
-    // Create thumb circle (inner movable) using Graphics
-    this.joystickThumb = this.scene.add.graphics();
-    this.joystickThumb.lineStyle(2, 0xffffff, 1);
-    this.joystickThumb.fillStyle(0x4a90d9, 0.9);
-    this.joystickThumb.fillCircle(0, 0, 20);
-    this.joystickThumb.strokeCircle(0, 0, 20);
-    this.joystickThumb.setPosition(x, y);
-    this.joystickThumb.setScrollFactor(0);
-    this.joystickThumb.setDepth(10001);
+    // Create background circle for D-pad area
+    const bg = this.scene.add.graphics();
+    bg.fillStyle(0x000000, 0.3);
+    bg.fillCircle(0, 0, this.DPAD_SIZE / 2);
+    this.dpadContainer.add(bg);
     
-    // Create joystick using direct class instantiation
-    try {
-      this.joystick = new VirtualJoystick(this.scene, {
-        x: x,
-        y: y,
-        radius: this.JOYSTICK_RADIUS,
-        base: this.joystickBase,
-        thumb: this.joystickThumb,
-        dir: '8dir',
-        fixed: true,
-        enable: true,
-      });
-      console.log('[MobileControls] Joystick created successfully');
-    } catch (err) {
-      console.error('[MobileControls] Failed to create joystick:', err);
+    // Create directional buttons
+    const buttonOffset = 42; // Distance from center
+    
+    // Up button
+    this.createDpadButton('up', 0, -buttonOffset, '\u25B2'); // Triangle up
+    
+    // Down button  
+    this.createDpadButton('down', 0, buttonOffset, '\u25BC'); // Triangle down
+    
+    // Left button
+    this.createDpadButton('left', -buttonOffset, 0, '\u25C0'); // Triangle left
+    
+    // Right button
+    this.createDpadButton('right', buttonOffset, 0, '\u25B6'); // Triangle right
+    
+    // Center indicator (optional - shows D-pad center)
+    const centerDot = this.scene.add.graphics();
+    centerDot.fillStyle(0x4a90d9, 0.5);
+    centerDot.fillCircle(0, 0, 12);
+    this.dpadContainer.add(centerDot);
+    
+    console.log('[MobileControls] D-pad created at', centerX, centerY);
+  }
+  
+  /**
+   * Create a single D-pad directional button
+   */
+  private createDpadButton(direction: string, offsetX: number, offsetY: number, symbol: string): void {
+    if (!this.dpadContainer) return;
+    
+    const container = this.scene.add.container(offsetX, offsetY);
+    
+    // Button background - semi-transparent with blue tint
+    const bg = this.scene.add.graphics();
+    bg.fillStyle(0x4a90d9, 0.7);
+    bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+    bg.lineStyle(2, 0xffffff, 0.8);
+    bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+    
+    // Direction symbol
+    const text = this.scene.add.text(0, 0, symbol, {
+      fontSize: '20px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    
+    container.add([bg, text]);
+    
+    // Create invisible hit area for better touch detection
+    const hitArea = this.scene.add.circle(0, 0, this.DPAD_BUTTON_SIZE / 2 + 5, 0x000000, 0);
+    hitArea.setInteractive({ useHandCursor: false });
+    container.add(hitArea);
+    
+    // Touch handlers
+    hitArea.on('pointerdown', () => {
+      this.setDirection(direction, true);
+      bg.clear();
+      bg.fillStyle(0x6ab0f9, 1); // Brighter when pressed
+      bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+      bg.lineStyle(2, 0xffffff, 1);
+      bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+    });
+    
+    hitArea.on('pointerup', () => {
+      this.setDirection(direction, false);
+      bg.clear();
+      bg.fillStyle(0x4a90d9, 0.7);
+      bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+      bg.lineStyle(2, 0xffffff, 0.8);
+      bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+    });
+    
+    hitArea.on('pointerout', () => {
+      this.setDirection(direction, false);
+      bg.clear();
+      bg.fillStyle(0x4a90d9, 0.7);
+      bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+      bg.lineStyle(2, 0xffffff, 0.8);
+      bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
+    });
+    
+    this.dpadContainer.add(container);
+    this.dpadButtons.set(direction, container);
+  }
+  
+  /**
+   * Set direction state
+   */
+  private setDirection(direction: string, pressed: boolean): void {
+    switch (direction) {
+      case 'up':
+        this.directionState.up = pressed;
+        break;
+      case 'down':
+        this.directionState.down = pressed;
+        break;
+      case 'left':
+        this.directionState.left = pressed;
+        break;
+      case 'right':
+        this.directionState.right = pressed;
+        break;
     }
   }
   
@@ -233,12 +305,14 @@ export class MobileControlsManager {
       this.callbacks.onActionA?.();
     });
     
-    // Button B (secondary - red) - to the left of A, slightly higher
+    // Button B (secondary - red/orange) - to the left of A, slightly higher
     const bX = aX - this.BUTTON_SPACING;
     const bY = aY - this.BUTTON_SPACING / 3;
     this.buttonB = this.createButton(bX, bY, 'B', 0xe94560, () => {
       this.callbacks.onActionB?.();
     });
+    
+    console.log('[MobileControls] Action buttons created - A at', aX, aY, '- B at', bX, bY);
   }
   
   /**
@@ -249,7 +323,7 @@ export class MobileControlsManager {
     container.setScrollFactor(0);
     container.setDepth(10000);
     
-    // Button background using Graphics for better rendering
+    // Button background using Graphics
     const bg = this.scene.add.graphics();
     bg.lineStyle(3, 0xffffff, 1);
     bg.fillStyle(color, 0.9);
@@ -258,7 +332,7 @@ export class MobileControlsManager {
     
     // Button label
     const text = this.scene.add.text(0, 0, label, {
-      fontSize: '18px',
+      fontSize: '22px',
       color: '#ffffff',
       fontStyle: 'bold',
       fontFamily: 'Arial, sans-serif',
@@ -267,22 +341,38 @@ export class MobileControlsManager {
     container.add([bg, text]);
     
     // Create an invisible hit area for interaction
-    const hitArea = this.scene.add.circle(0, 0, this.BUTTON_SIZE / 2, 0x000000, 0);
-    hitArea.setInteractive({ useHandCursor: true });
+    const hitArea = this.scene.add.circle(0, 0, this.BUTTON_SIZE / 2 + 5, 0x000000, 0);
+    hitArea.setInteractive({ useHandCursor: false });
     container.add(hitArea);
     
     // Touch/click handlers
     hitArea.on('pointerdown', () => {
       container.setScale(0.9);
+      // Brighten on press
+      bg.clear();
+      bg.lineStyle(3, 0xffffff, 1);
+      bg.fillStyle(color, 1);
+      bg.fillCircle(0, 0, this.BUTTON_SIZE / 2);
+      bg.strokeCircle(0, 0, this.BUTTON_SIZE / 2);
       onPress();
     });
     
     hitArea.on('pointerup', () => {
       container.setScale(1);
+      bg.clear();
+      bg.lineStyle(3, 0xffffff, 1);
+      bg.fillStyle(color, 0.9);
+      bg.fillCircle(0, 0, this.BUTTON_SIZE / 2);
+      bg.strokeCircle(0, 0, this.BUTTON_SIZE / 2);
     });
     
     hitArea.on('pointerout', () => {
       container.setScale(1);
+      bg.clear();
+      bg.lineStyle(3, 0xffffff, 1);
+      bg.fillStyle(color, 0.9);
+      bg.fillCircle(0, 0, this.BUTTON_SIZE / 2);
+      bg.strokeCircle(0, 0, this.BUTTON_SIZE / 2);
     });
     
     return container;
@@ -298,29 +388,23 @@ export class MobileControlsManager {
     this.scene.time.delayedCall(100, () => {
       if (!this.enabled) return;
       // Recreate controls with new positions
-      this.destroyJoystick();
+      this.destroyDpad();
       this.destroyActionButtons();
-      this.createJoystick();
+      this.createDpad();
       this.createActionButtons();
     });
   };
   
   /**
-   * Destroy joystick
+   * Destroy D-pad
    */
-  private destroyJoystick(): void {
-    if (this.joystick) {
-      this.joystick.destroy();
-      this.joystick = null;
+  private destroyDpad(): void {
+    if (this.dpadContainer) {
+      this.dpadContainer.destroy();
+      this.dpadContainer = null;
     }
-    if (this.joystickBase) {
-      this.joystickBase.destroy();
-      this.joystickBase = null;
-    }
-    if (this.joystickThumb) {
-      this.joystickThumb.destroy();
-      this.joystickThumb = null;
-    }
+    this.dpadButtons.clear();
+    this.directionState = { left: false, right: false, up: false, down: false };
   }
   
   /**
@@ -346,11 +430,10 @@ export class MobileControlsManager {
   }
   
   /**
-   * Update - call this from scene update loop
-   * Not strictly necessary but can be used for animations
+   * Update - call this from scene update loop (optional)
    */
   update(): void {
     // Currently no per-frame updates needed
-    // Joystick input is read directly via getDirection()
+    // Direction state is updated via touch events
   }
 }
