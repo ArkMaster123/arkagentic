@@ -727,11 +727,23 @@ export class TownScene extends Scene {
       this.cameras.main.setViewport(0, 0, this.game.scale.width, this.game.scale.height);
       this.cameras.main.preRender();
       
+      // Test: Add a bright colored rectangle to see if rendering works
+      const testRect = this.add.rectangle(400, 300, 200, 200, 0xff0000);
+      testRect.setDepth(1000);
+      
       this.serverLog('info', 'Camera after delayed fix', {
         worldViewWidth: this.cameras.main.worldView.width,
         worldViewHeight: this.cameras.main.worldView.height,
         viewportWidth: this.cameras.main.width,
         viewportHeight: this.cameras.main.height,
+        testRectAdded: true,
+        groundLayerVisible: this.groundLayer?.visible,
+        groundLayerAlpha: this.groundLayer?.alpha,
+      });
+      
+      // Remove test rect after 2 seconds
+      this.time.delayedCall(2000, () => {
+        testRect.destroy();
       });
     });
   }
