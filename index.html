@@ -2816,6 +2816,14 @@
     }
 
     function addRoomChatMessage(senderName, message, isSelf = false, isSystem = false) {
+      console.log('[RoomChat] addRoomChatMessage called:', { senderName, message, isSelf, isSystem });
+      console.log('[RoomChat] roomChatMessages element:', roomChatMessages);
+      
+      if (!roomChatMessages) {
+        console.error('[RoomChat] roomChatMessages is null! Cannot add message.');
+        return;
+      }
+      
       // Remove welcome message if present
       const welcome = roomChatMessages.querySelector('.welcome-message');
       if (welcome) welcome.remove();
@@ -2840,6 +2848,9 @@
       
       roomChatMessages.appendChild(messageDiv);
       roomChatMessages.scrollTop = roomChatMessages.scrollHeight;
+      
+      console.log('[RoomChat] Message appended. Children count:', roomChatMessages.children.length);
+      console.log('[RoomChat] Message div:', messageDiv);
       
       // If not on room tab, increment unread count
       if (activeTab !== 'room' && !isSelf) {

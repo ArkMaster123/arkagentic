@@ -268,13 +268,25 @@ class GameBridgeClass {
       configurable: true,
     });
     
-    // Functions
-    win.showTransition = this.showTransition.bind(this);
-    win.hideTransition = this.hideTransition.bind(this);
-    win.updatePlayerCount = this.updatePlayerCount.bind(this);
-    win.addRoomChatMessage = this.addRoomChatMessage.bind(this);
-    win.selectAgentForChat = this.selectAgentForChat.bind(this);
-    win.switchChatTab = this.switchChatTab.bind(this);
+    // Functions - only set if not already defined by HTML
+    // This allows index.html to define functions first, and we won't overwrite them
+    if (!win.showTransition) win.showTransition = this.showTransition.bind(this);
+    if (!win.hideTransition) win.hideTransition = this.hideTransition.bind(this);
+    if (!win.updatePlayerCount) win.updatePlayerCount = this.updatePlayerCount.bind(this);
+    if (!win.addRoomChatMessage) win.addRoomChatMessage = this.addRoomChatMessage.bind(this);
+    if (!win.selectAgentForChat) win.selectAgentForChat = this.selectAgentForChat.bind(this);
+    if (!win.switchChatTab) win.switchChatTab = this.switchChatTab.bind(this);
+    
+    // Register existing HTML functions as callbacks so GameBridge methods work too
+    if (win.addRoomChatMessage && !this.callbacks.addRoomChatMessage) {
+      this.callbacks.addRoomChatMessage = win.addRoomChatMessage;
+    }
+    if (win.updatePlayerCount && !this.callbacks.updatePlayerCount) {
+      this.callbacks.updatePlayerCount = win.updatePlayerCount;
+    }
+    if (win.switchChatTab && !this.callbacks.switchChatTab) {
+      this.callbacks.switchChatTab = win.switchChatTab;
+    }
     
     // Route mappings
     Object.defineProperty(win, 'AGENT_TO_ROUTE', {
