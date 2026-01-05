@@ -348,91 +348,18 @@ export class TownScene extends Scene {
     }
   }
 
-  // Helper to send logs to server for mobile debugging
-  private serverLog(level: string, message: string, data?: Record<string, unknown>): void {
-    const logData = {
-      level,
-      message,
-      data,
-      user_agent: navigator.userAgent,
-    };
-    
-    // Log locally too
-    console.log(`[TownScene] ${message}`, data || '');
-    
-    // Send to server (fire and forget)
-    fetch('/api/client-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(logData),
-    }).catch(() => { /* ignore errors */ });
-  }
-
   private initMap(): void {
-    this.serverLog('info', 'initMap started', { 
-      screenWidth: window.innerWidth,
-      screenHeight: window.innerHeight,
-      gameWidth: this.game.scale.width,
-      gameHeight: this.game.scale.height,
-      devicePixelRatio: window.devicePixelRatio,
-    });
-
     this.map = this.make.tilemap({
       key: 'town',
       tileWidth: 16,
       tileHeight: 16,
     });
     
-    this.serverLog('info', 'Map created', { 
-      mapWidth: this.map.width, 
-      mapHeight: this.map.height,
-      widthInPixels: this.map.widthInPixels,
-      heightInPixels: this.map.heightInPixels,
-    });
-    
-    // Check if tiles texture exists
-    const tilesExists = this.textures.exists('tiles');
-    this.serverLog('info', 'Tiles texture check', { exists: tilesExists });
-    
     this.tileset = this.map.addTilesetImage('town', 'tiles')!;
     
-    if (!this.tileset) {
-      this.serverLog('error', 'TILESET FAILED TO LOAD', { tilesExists });
-    } else {
-      this.serverLog('info', 'Tileset loaded', { name: this.tileset.name });
-    }
-    
-    // Create layers with explicit depth to ensure proper rendering order
+    // Create layers
     this.groundLayer = this.map.createLayer('ground', this.tileset, 0, 0)!;
     this.wallLayer = this.map.createLayer('wall', this.tileset, 0, 0)!;
-    
-    // Set explicit depths - ground at bottom, then walls
-    if (this.groundLayer) {
-      this.groundLayer.setDepth(0);
-    }
-    if (this.wallLayer) {
-      this.wallLayer.setDepth(1);
-    }
-    
-    if (!this.groundLayer) {
-      this.serverLog('error', 'GROUND LAYER FAILED', { 
-        availableLayers: this.map.layers.map(l => l.name) 
-      });
-    } else {
-      this.serverLog('info', 'Ground layer created', { 
-        visible: this.groundLayer.visible, 
-        alpha: this.groundLayer.alpha,
-        depth: this.groundLayer.depth,
-        x: this.groundLayer.x,
-        y: this.groundLayer.y,
-        width: this.groundLayer.width,
-        height: this.groundLayer.height,
-        displayWidth: this.groundLayer.displayWidth,
-        displayHeight: this.groundLayer.displayHeight,
-        scaleX: this.groundLayer.scaleX,
-        scaleY: this.groundLayer.scaleY,
-      });
-    }
     
     // Try to create optional layers (may not exist in all tilemaps)
     try {
@@ -674,107 +601,20 @@ export class TownScene extends Scene {
     const mapWidth = this.map.widthInPixels;
     const mapHeight = this.map.heightInPixels;
 
-    // Get the actual game canvas size - use game config dimensions
-    // Don't use scale.width/height as they may not be set correctly on mobile
-    const gameWidth = this.game.config.width as number;
-    const gameHeight = this.game.config.height as number;
+    console.log('Map dimensions:', mapWidth, 'x', mapHeight);
 
-    this.serverLog('info', 'initCamera', {
-      mapWidth,
-      mapHeight,
-      gameConfigWidth: gameWidth,
-      gameConfigHeight: gameHeight,
-      scaleWidth: this.game.scale.width,
-      scaleHeight: this.game.scale.height,
-      cameraWidth: this.cameras.main.width,
-      cameraHeight: this.cameras.main.height,
-    });
-
-    // Don't call setSize - let Phaser manage the camera size automatically
-    // Just set the bounds for the camera to scroll within
     this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
 
     // Follow the player instead of centering on meeting point
     if (this.player) {
       this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-      this.serverLog('info', 'Camera following player', {
-        playerX: this.player.x,
-        playerY: this.player.y,
-      });
     } else {
       this.cameras.main.centerOn(MEETING_POINT.x, MEETING_POINT.y);
-      this.serverLog('info', 'Camera centered on meeting point', MEETING_POINT);
     }
     this.cameras.main.setZoom(2);
-    
-    this.serverLog('info', 'Camera final state', {
-      zoom: this.cameras.main.zoom,
-      scrollX: this.cameras.main.scrollX,
-      scrollY: this.cameras.main.scrollY,
-      worldViewX: this.cameras.main.worldView.x,
-      worldViewY: this.cameras.main.worldView.y,
-      worldViewWidth: this.cameras.main.worldView.width,
-      worldViewHeight: this.cameras.main.worldView.height,
-    });
 
     // Set default cursor
     this.input.manager.canvas.style.cursor = 'default';
-    
-    // On mobile, the camera worldView may be 0x0 initially
-    // Force a refresh after a short delay to fix this
-    this.time.delayedCall(100, () => {
-      // Force camera to recalculate its viewport
-      this.cameras.main.setViewport(0, 0, this.game.scale.width, this.game.scale.height);
-      this.cameras.main.preRender();
-      
-      // Force tilemap layers to re-render
-      if (this.groundLayer) {
-        this.groundLayer.setVisible(true);
-        this.groundLayer.setAlpha(1);
-        this.groundLayer.setActive(true);
-      }
-      if (this.wallLayer) {
-        this.wallLayer.setVisible(true);
-        this.wallLayer.setAlpha(1);
-      }
-      if (this.treeLayer) {
-        this.treeLayer.setVisible(true);
-      }
-      if (this.houseLayer) {
-        this.houseLayer.setVisible(true);
-      }
-      
-      // Test: Add a bright colored rectangle to see if rendering works
-      const testRect = this.add.rectangle(400, 300, 200, 200, 0xff0000);
-      testRect.setDepth(1000);
-      
-      // Check canvas element directly
-      const canvas = this.game.canvas;
-      const canvasStyle = canvas ? window.getComputedStyle(canvas) : null;
-      
-      this.serverLog('info', 'Camera after delayed fix', {
-        worldViewWidth: this.cameras.main.worldView.width,
-        worldViewHeight: this.cameras.main.worldView.height,
-        viewportWidth: this.cameras.main.width,
-        viewportHeight: this.cameras.main.height,
-        testRectAdded: true,
-        groundLayerVisible: this.groundLayer?.visible,
-        groundLayerAlpha: this.groundLayer?.alpha,
-        canvasWidth: canvas?.width,
-        canvasHeight: canvas?.height,
-        canvasStyleWidth: canvasStyle?.width,
-        canvasStyleHeight: canvasStyle?.height,
-        canvasDisplay: canvasStyle?.display,
-        canvasVisibility: canvasStyle?.visibility,
-        canvasOpacity: canvasStyle?.opacity,
-        rendererType: this.game.renderer.type,
-      });
-      
-      // Remove test rect after 2 seconds
-      this.time.delayedCall(2000, () => {
-        testRect.destroy();
-      });
-    });
   }
   
   private async initMultiplayer(): Promise<void> {
