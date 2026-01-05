@@ -727,6 +727,23 @@ export class TownScene extends Scene {
       this.cameras.main.setViewport(0, 0, this.game.scale.width, this.game.scale.height);
       this.cameras.main.preRender();
       
+      // Force tilemap layers to re-render
+      if (this.groundLayer) {
+        this.groundLayer.setVisible(true);
+        this.groundLayer.setAlpha(1);
+        this.groundLayer.setActive(true);
+      }
+      if (this.wallLayer) {
+        this.wallLayer.setVisible(true);
+        this.wallLayer.setAlpha(1);
+      }
+      if (this.treeLayer) {
+        this.treeLayer.setVisible(true);
+      }
+      if (this.houseLayer) {
+        this.houseLayer.setVisible(true);
+      }
+      
       // Test: Add a bright colored rectangle to see if rendering works
       const testRect = this.add.rectangle(400, 300, 200, 200, 0xff0000);
       testRect.setDepth(1000);
