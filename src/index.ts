@@ -1,4 +1,4 @@
-import { Game, Scale, Types, WEBGL } from 'phaser';
+import { Game, Scale, Types, WEBGL, CANVAS, AUTO } from 'phaser';
 import { LoadingScene } from './scenes/LoadingScene';
 import { CharacterSelectScene } from './scenes/CharacterSelectScene';
 import { TownScene } from './scenes/TownScene';
@@ -133,7 +133,9 @@ const isMobile = isMobileDevice();
 // Using dynamic resolution was causing tilemap rendering issues on mobile
 export const gameConfig: Types.Core.GameConfig = {
   title: 'AgentVerse - Multi-Agent Collaboration',
-  type: WEBGL,
+  // Use AUTO to let Phaser choose - it will try WebGL first, fall back to Canvas
+  // On mobile, WebGL can have issues with tilemap textures
+  type: AUTO,
   parent: 'game',
   backgroundColor: '#1a1a2e',
   scale: {
