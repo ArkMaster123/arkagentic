@@ -1192,6 +1192,12 @@ export class TownScene extends Scene {
   }
   
   private showWelcomeMessage(): void {
+    // Dispatch event for HTML welcome modal
+    window.dispatchEvent(new CustomEvent('new-player-joined', { 
+      detail: { playerName: this.playerName } 
+    }));
+    
+    // Keep the in-game banner as a subtle reminder (will show behind modal)
     const { width, height } = this.cameras.main;
     
     // Create welcome banner

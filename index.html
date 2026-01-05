@@ -9,6 +9,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>AgentVerse - Multi-Agent Visual Collaboration</title>
   <link rel="stylesheet" href="/src/index.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -1115,6 +1118,326 @@
     .settings-actions button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+
+    /* ==========================================
+       WELCOME MODAL - First-time user onboarding
+       ========================================== */
+    
+    #welcome-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    #welcome-modal.show {
+      display: flex;
+    }
+    
+    #welcome-content {
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border: 3px solid #8e44ad;
+      border-radius: 16px;
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 0 60px rgba(142, 68, 173, 0.4), inset 0 0 30px rgba(142, 68, 173, 0.1);
+      animation: welcomeIn 0.5s ease;
+    }
+    
+    @keyframes welcomeIn {
+      from { 
+        opacity: 0; 
+        transform: scale(0.9) translateY(20px); 
+      }
+      to { 
+        opacity: 1; 
+        transform: scale(1) translateY(0); 
+      }
+    }
+    
+    #welcome-header {
+      background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    #welcome-wizard {
+      width: 64px;
+      height: 64px;
+      background: #1a1a2e;
+      border-radius: 12px;
+      border: 2px solid rgba(255,255,255,0.2);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    #welcome-wizard .wizard-sprite {
+      width: 48px;
+      height: 48px;
+      background-image: url('/assets/sprites/joseph.png');
+      background-size: 192px 84px;
+      background-position: 0 -21px;
+      image-rendering: pixelated;
+      animation: wizardBob 1s ease-in-out infinite;
+    }
+    
+    @keyframes wizardBob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    
+    @keyframes wizardWalk {
+      0% { background-position: 0 -21px; }
+      25% { background-position: -14px -21px; }
+      50% { background-position: -28px -21px; }
+      75% { background-position: -42px -21px; }
+      100% { background-position: 0 -21px; }
+    }
+    
+    #welcome-wizard .wizard-sprite.walking {
+      animation: wizardWalk 0.6s steps(1) infinite, wizardBob 1s ease-in-out infinite;
+    }
+    
+    #welcome-title-area h2 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 14px;
+      color: #fff;
+      margin: 0 0 6px 0;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+    }
+    
+    #welcome-title-area p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.8);
+      margin: 0;
+    }
+    
+    #welcome-body {
+      padding: 24px;
+      overflow-y: auto;
+      max-height: calc(90vh - 180px);
+    }
+    
+    .welcome-speech {
+      background: #0d0d14;
+      border: 2px solid #2a2a3e;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    
+    .welcome-speech::before {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 30px;
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 10px solid #2a2a3e;
+    }
+    
+    .welcome-speech p {
+      color: #ddd;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    .welcome-speech .wizard-name {
+      color: #9b59b6;
+      font-weight: 600;
+    }
+    
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 20px 0;
+    }
+    
+    .feature-card {
+      background: linear-gradient(135deg, #1a1a28 0%, #12121a 100%);
+      border: 1px solid #2a2a3e;
+      border-radius: 10px;
+      padding: 14px;
+      transition: all 0.2s;
+    }
+    
+    .feature-card:hover {
+      border-color: #8e44ad;
+      transform: translateY(-2px);
+    }
+    
+    .feature-card .feature-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    
+    .feature-card h4 {
+      font-size: 12px;
+      color: #fff;
+      margin: 0 0 4px 0;
+    }
+    
+    .feature-card p {
+      font-size: 11px;
+      color: #888;
+      margin: 0;
+      line-height: 1.4;
+    }
+    
+    .welcome-steps {
+      margin: 20px 0;
+    }
+    
+    .welcome-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid #1a1a28;
+    }
+    
+    .welcome-step:last-child {
+      border-bottom: none;
+    }
+    
+    .step-number {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    
+    .step-content h4 {
+      font-size: 13px;
+      color: #fff;
+      margin: 0 0 4px 0;
+    }
+    
+    .step-content p {
+      font-size: 12px;
+      color: #888;
+      margin: 0;
+    }
+    
+    .step-content .key-hint {
+      display: inline-block;
+      background: #2a2a3e;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #e94560;
+      margin-top: 4px;
+    }
+    
+    #welcome-footer {
+      padding: 16px 24px;
+      border-top: 1px solid #2a2a3e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0d0d14;
+    }
+    
+    .welcome-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #888;
+      cursor: pointer;
+    }
+    
+    .welcome-checkbox input {
+      width: 16px;
+      height: 16px;
+      accent-color: #8e44ad;
+    }
+    
+    #welcome-start-btn {
+      background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+    }
+    
+    #welcome-start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(142, 68, 173, 0.4);
+    }
+    
+    /* Mobile adjustments for welcome modal */
+    @media (max-width: 600px) {
+      #welcome-content {
+        max-height: 95vh;
+        border-radius: 12px;
+      }
+      
+      #welcome-header {
+        padding: 16px;
+      }
+      
+      #welcome-wizard {
+        width: 48px;
+        height: 48px;
+      }
+      
+      #welcome-wizard .wizard-sprite {
+        width: 36px;
+        height: 36px;
+      }
+      
+      #welcome-title-area h2 {
+        font-size: 11px;
+      }
+      
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      #welcome-footer {
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      #welcome-start-btn {
+        width: 100%;
+      }
     }
 
     /* Jitsi Video Chat Container */
@@ -2237,6 +2560,99 @@
         <span></span>
         <span></span>
         <span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome Modal - First-time user onboarding -->
+  <div id="welcome-modal">
+    <div id="welcome-content">
+      <div id="welcome-header">
+        <div id="welcome-wizard">
+          <div class="wizard-sprite walking"></div>
+        </div>
+        <div id="welcome-title-area">
+          <h2>WELCOME, ADVENTURER!</h2>
+          <p>Gandalfius the Wizard will guide you</p>
+        </div>
+      </div>
+      
+      <div id="welcome-body">
+        <div class="welcome-speech">
+          <p><span class="wizard-name">Gandalfius:</span> "Greetings, traveler! Welcome to <strong>ArkAgentic</strong> - a magical realm where AI agents come to life! Let me show you around..."</p>
+        </div>
+        
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h4>AI Agents</h4>
+            <p>Chat with 6 unique AI specialists - each with their own personality and expertise!</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🗺️</div>
+            <h4>Explore</h4>
+            <p>Walk around the town, enter buildings, and discover each agent's workspace.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">👥</div>
+            <h4>Multiplayer</h4>
+            <p>See other players in real-time! Chat with them in the Room Chat tab.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📹</div>
+            <h4>Video Chat</h4>
+            <p>Enter the Meeting Rooms building for live video calls with other players!</p>
+          </div>
+        </div>
+        
+        <div class="welcome-speech">
+          <p><span class="wizard-name">Gandalfius:</span> "Here's how to get started..."</p>
+        </div>
+        
+        <div class="welcome-steps">
+          <div class="welcome-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h4>Move Around</h4>
+              <p>Use arrow keys or WASD to walk. On mobile, use the D-pad.</p>
+              <span class="key-hint">↑ ↓ ← → or W A S D</span>
+            </div>
+          </div>
+          <div class="welcome-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h4>Talk to Agents</h4>
+              <p>Click any agent in the left sidebar, then type your message in the chat box!</p>
+            </div>
+          </div>
+          <div class="welcome-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h4>Enter Buildings</h4>
+              <p>Walk up to a door and press SPACE to enter. Each agent has their own room!</p>
+              <span class="key-hint">SPACE to interact</span>
+            </div>
+          </div>
+          <div class="welcome-step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <h4>Meet Other Players</h4>
+              <p>Switch to "Room Chat" tab to chat with other players you see walking around!</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="welcome-speech">
+          <p><span class="wizard-name">Gandalfius:</span> "I specialize in freelancing wisdom, but my friends can help with research, analysis, writing, and more. Go explore!"</p>
+        </div>
+      </div>
+      
+      <div id="welcome-footer">
+        <label class="welcome-checkbox">
+          <input type="checkbox" id="welcome-dont-show">
+          Don't show this again
+        </label>
+        <button id="welcome-start-btn">START ADVENTURE!</button>
       </div>
     </div>
   </div>
@@ -3468,6 +3884,74 @@
         if (overlay) overlay.classList.remove('active');
       }
     });
+
+    // ==========================================
+    // WELCOME MODAL - First-time user onboarding
+    // ==========================================
+    
+    // Check if user has seen the welcome modal before
+    function shouldShowWelcomeModal() {
+      const hasSeenWelcome = localStorage.getItem('arkagentic_welcome_seen');
+      return !hasSeenWelcome;
+    }
+    
+    // Show the welcome modal
+    function showWelcomeModal() {
+      const modal = document.getElementById('welcome-modal');
+      if (modal) {
+        modal.classList.add('show');
+        // Start wizard walking animation
+        const wizard = document.querySelector('#welcome-wizard .wizard-sprite');
+        if (wizard) wizard.classList.add('walking');
+      }
+    }
+    
+    // Hide the welcome modal
+    function hideWelcomeModal() {
+      const modal = document.getElementById('welcome-modal');
+      const dontShowAgain = document.getElementById('welcome-dont-show');
+      
+      if (dontShowAgain && dontShowAgain.checked) {
+        localStorage.setItem('arkagentic_welcome_seen', 'true');
+      }
+      
+      if (modal) {
+        modal.classList.remove('show');
+      }
+    }
+    
+    // Initialize welcome modal event listeners
+    function initWelcomeModal() {
+      const startBtn = document.getElementById('welcome-start-btn');
+      const modal = document.getElementById('welcome-modal');
+      
+      if (startBtn) {
+        startBtn.addEventListener('click', hideWelcomeModal);
+      }
+      
+      // Close on clicking outside content (optional - uncomment if desired)
+      // if (modal) {
+      //   modal.addEventListener('click', (e) => {
+      //     if (e.target === modal) hideWelcomeModal();
+      //   });
+      // }
+    }
+    
+    // Listen for new player event from game
+    window.addEventListener('new-player-joined', function(e) {
+      console.log('[Welcome] New player detected, showing welcome modal');
+      if (shouldShowWelcomeModal()) {
+        // Small delay to let the game scene fully load
+        setTimeout(showWelcomeModal, 500);
+      }
+    });
+    
+    // Expose function globally so game can trigger it
+    window.showWelcomeModal = showWelcomeModal;
+    window.hideWelcomeModal = hideWelcomeModal;
+    
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', initWelcomeModal);
   </script>
 </body>
 </html>
