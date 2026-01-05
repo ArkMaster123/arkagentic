@@ -2314,10 +2314,20 @@
       }, 2000);
     });
 
+    // Helper function to get the active game scene
+    function getActiveScene() {
+      if (!window.game || !window.game.scene) return null;
+      // Find the first active scene (not loading screen)
+      const activeScenes = window.game.scene.scenes.filter(s => 
+        s.scene.isActive() && s.scene.key !== 'loading-scene'
+      );
+      return activeScenes[0] || null;
+    }
+
     // Zoom controls
     document.getElementById('zoom-out').addEventListener('click', () => {
-      if (window.game && window.game.scene.scenes[1]) {
-        const scene = window.game.scene.scenes[1];
+      const scene = getActiveScene();
+      if (scene && scene.cameras && scene.cameras.main) {
         const cam = scene.cameras.main;
         const newZoom = Math.max(1, cam.zoom - 0.5);
         cam.setZoom(newZoom);
@@ -2328,8 +2338,8 @@
     });
 
     document.getElementById('zoom-in').addEventListener('click', () => {
-      if (window.game && window.game.scene.scenes[1]) {
-        const scene = window.game.scene.scenes[1];
+      const scene = getActiveScene();
+      if (scene && scene.cameras && scene.cameras.main) {
         const cam = scene.cameras.main;
         const newZoom = Math.min(4, cam.zoom + 0.5);
         cam.setZoom(newZoom);
@@ -2344,8 +2354,8 @@
       const newZoom = parseFloat(e.target.value);
       document.getElementById('zoom-value').textContent = newZoom + 'x';
       document.getElementById('zoom-level').textContent = newZoom + 'x';
-      if (window.game && window.game.scene.scenes[1]) {
-        const scene = window.game.scene.scenes[1];
+      const scene = getActiveScene();
+      if (scene && scene.cameras && scene.cameras.main) {
         scene.cameras.main.setZoom(newZoom);
       }
     });
