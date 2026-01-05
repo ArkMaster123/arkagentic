@@ -674,16 +674,24 @@ export class TownScene extends Scene {
     const mapWidth = this.map.widthInPixels;
     const mapHeight = this.map.heightInPixels;
 
+    // Get the actual game canvas size - use game config dimensions
+    // Don't use scale.width/height as they may not be set correctly on mobile
+    const gameWidth = this.game.config.width as number;
+    const gameHeight = this.game.config.height as number;
+
     this.serverLog('info', 'initCamera', {
       mapWidth,
       mapHeight,
+      gameConfigWidth: gameWidth,
+      gameConfigHeight: gameHeight,
       scaleWidth: this.game.scale.width,
       scaleHeight: this.game.scale.height,
       cameraWidth: this.cameras.main.width,
       cameraHeight: this.cameras.main.height,
     });
 
-    this.cameras.main.setSize(this.game.scale.width, this.game.scale.height);
+    // Don't call setSize - let Phaser manage the camera size automatically
+    // Just set the bounds for the camera to scroll within
     this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
 
     // Follow the player instead of centering on meeting point
