@@ -1,14 +1,19 @@
 import { Physics, Scene, Input, Types, GameObjects } from 'phaser';
 import { Actor } from './Actor';
+import { GameBridge } from '../core';
+import { MobileControlsManager } from './MobileControls';
 
 /**
  * Player - The user-controlled character
- * Handles WASD/Arrow movement and syncs position to multiplayer
+ * Handles WASD/Arrow movement, touch joystick, and syncs position to multiplayer
  */
 export class Player extends Actor {
   private cursors!: Types.Input.Keyboard.CursorKeys;
   private wasd!: { W: Input.Keyboard.Key; A: Input.Keyboard.Key; S: Input.Keyboard.Key; D: Input.Keyboard.Key };
   private speed: number = 100;
+  
+  // Mobile controls reference (set externally by scene)
+  private mobileControls: MobileControlsManager | null = null;
   
   // Current movement state
   public direction: string = 'down';
@@ -68,6 +73,13 @@ export class Player extends Actor {
     if (this.nameLabel) {
       this.nameLabel.setText(name);
     }
+  }
+  
+  /**
+   * Set mobile controls reference for joystick input
+   */
+  setMobileControls(controls: MobileControlsManager | null): void {
+    this.mobileControls = controls;
   }
 
   private initInput(): void {
@@ -147,16 +159,7 @@ export class Player extends Actor {
    * Controls are disabled when user is typing in chat sidebar
    */
   private areControlsEnabled(): boolean {
-    // Check if an input or textarea is currently focused
-    const activeElement = document.activeElement;
-    const isInputFocused = activeElement && (
-      activeElement.tagName === 'INPUT' || 
-      activeElement.tagName === 'TEXTAREA' || 
-      (activeElement instanceof HTMLElement && activeElement.isContentEditable)
-    );
-    
-    // Controls are enabled only if flag is true AND no input is focused
-    return (window as any).gameControlsEnabled !== false && !isInputFocused;
+    return GameBridge.areControlsUsable();
   }
 
   update(): void {
@@ -174,11 +177,13 @@ export class Player extends Actor {
       return;
     }
 
-    // Check movement input (WASD or Arrow keys)
-    const moveLeft = this.cursors.left?.isDown || this.wasd.A?.isDown;
-    const moveRight = this.cursors.right?.isDown || this.wasd.D?.isDown;
-    const moveUp = this.cursors.up?.isDown || this.wasd.W?.isDown;
-    const moveDown = this.cursors.down?.isDown || this.wasd.S?.isDown;
+    // Check movement input (WASD, Arrow keys, or mobile joystick)
+    const joystickDir = this.mobileControls?.getDirection() || { left: false, right: false, up: false, down: false };
+    
+    const moveLeft = this.cursors.left?.isDown || this.wasd.A?.isDown || joystickDir.left;
+    const moveRight = this.cursors.right?.isDown || this.wasd.D?.isDown || joystickDir.right;
+    const moveUp = this.cursors.up?.isDown || this.wasd.W?.isDown || joystickDir.up;
+    const moveDown = this.cursors.down?.isDown || this.wasd.S?.isDown || joystickDir.down;
 
     let velocityX = 0;
     let velocityY = 0;
@@ -259,5 +264,39 @@ export class Player extends Actor {
     if (dx > 50 || dy > 50) {
       this.setPosition(x, y);
     }
+  }
+
+  /**
+   * Clean up resources when player is destroyed
+   * Prevents memory leaks from name labels and keyboard listeners
+   */
+  destroy(fromScene?: boolean): void {
+    // Clean up name label
+    if (this.nameLabel) {
+      this.nameLabel.destroy();
+      this.nameLabel = null;
+    }
+    
+    // Clean up keyboard listeners
+    if (this.scene.input.keyboard) {
+      if (this.cursors) {
+        this.cursors.up?.destroy();
+        this.cursors.down?.destroy();
+        this.cursors.left?.destroy();
+        this.cursors.right?.destroy();
+      }
+      if (this.wasd) {
+        this.wasd.W?.destroy();
+        this.wasd.A?.destroy();
+        this.wasd.S?.destroy();
+        this.wasd.D?.destroy();
+      }
+    }
+    
+    // Clear callback reference
+    this.onPositionChange = undefined;
+    
+    // Call parent destroy
+    super.destroy(fromScene);
   }
 }

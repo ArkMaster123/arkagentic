@@ -1,10 +1,35 @@
 import { Scene, Tilemaps, GameObjects } from 'phaser';
 import { Player } from '../classes/Player';
+import { MultiplayerManager } from '../classes/MultiplayerManager';
 import { JitsiManager, JitsiZone } from '../classes/JitsiManager';
 import { MiniMap } from '../classes/MiniMap';
+import { MobileControlsManager, isMobileDevice } from '../classes/MobileControls';
 import { JITSI_CONFIG } from '../constants';
+import { GameBridge } from '../core';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
+
+// Type for Tiled object properties
+interface TiledProperty {
+  name: string;
+  type: string;
+  value: string | number | boolean;
+}
+
+// Jitsi event data types
+interface JitsiJoinedData {
+  roomName?: string;
+}
+
+interface JitsiParticipantData {
+  displayName?: string;
+}
+
+interface MeetingRoomData {
+  fromTown: boolean;
+  playerAvatar?: string;
+  playerName?: string;
+}
 
 interface MeetingRoomData {
   fromTown: boolean;
@@ -24,6 +49,9 @@ export class MeetingRoomScene extends Scene {
   private playerAvatar: string = 'brendan';
   private playerName: string = 'Player';
   
+  // Multiplayer
+  private multiplayer: MultiplayerManager | null = null;
+  
   // Jitsi integration
   private jitsiManager: JitsiManager | null = null;
   private jitsiZones: MeetingZoneObject[] = [];
@@ -32,6 +60,9 @@ export class MeetingRoomScene extends Scene {
   // UI elements
   private miniMap: MiniMap | null = null;
   private zoneIndicator: GameObjects.Container | null = null;
+  
+  // Mobile controls
+  private mobileControls: MobileControlsManager | null = null;
   
   public rexUI!: UIPlugin;
   public rexBoard!: BoardPlugin;
@@ -63,13 +94,44 @@ export class MeetingRoomScene extends Scene {
     this.createUI();
     this.setupInput();
     this.createMaintenanceSigns();
+    this.initMultiplayer();
+    this.initMobileControls();
 
     // Hide transition after room is ready
-    setTimeout(() => {
-      if ((window as any).hideTransition) {
-        (window as any).hideTransition();
+    this.time.delayedCall(500, () => {
+      GameBridge.hideTransition();
+    });
+  }
+  
+  /**
+   * Initialize or transfer multiplayer connection
+   * Reuses existing connection from GameBridge if available
+   */
+  private initMultiplayer(): void {
+    // Check if we have an existing multiplayer manager from another scene
+    if (GameBridge.multiplayerManager) {
+      console.log('[MeetingRoomScene] Reusing existing multiplayer connection');
+      this.multiplayer = GameBridge.multiplayerManager;
+      
+      // Transfer the manager to this scene (recreates sprites for this scene)
+      this.multiplayer.transferToScene(this);
+      
+      // Change room to 'meetings' if not already there
+      if (this.multiplayer.getCurrentRoom() !== 'meetings') {
+        this.multiplayer.changeRoom('meetings');
       }
-    }, 500);
+      
+      // Set up position update callback for the player
+      if (this.player) {
+        this.player.onPositionChange = (x, y, direction, isMoving, animation) => {
+          if (this.multiplayer) {
+            this.multiplayer.sendPosition(x, y, direction, isMoving, animation);
+          }
+        };
+      }
+    } else {
+      console.log('[MeetingRoomScene] No existing multiplayer connection');
+    }
   }
 
   private createRoomFromTilemap(): void {
@@ -196,9 +258,9 @@ export class MeetingRoomScene extends Scene {
       
       if (obj.type === 'jitsi-zone' && obj.x !== undefined && obj.y !== undefined) {
         // Extract properties
-        const roomNameProp = obj.properties?.find((p: any) => p.name === 'roomName');
-        const displayNameProp = obj.properties?.find((p: any) => p.name === 'displayName');
-        const triggerProp = obj.properties?.find((p: any) => p.name === 'trigger');
+        const roomNameProp = obj.properties?.find((p: TiledProperty) => p.name === 'roomName');
+        const displayNameProp = obj.properties?.find((p: TiledProperty) => p.name === 'displayName');
+        const triggerProp = obj.properties?.find((p: TiledProperty) => p.name === 'trigger');
 
         const zone: JitsiZone = {
           id: `meeting-${obj.id}`,
@@ -318,8 +380,9 @@ export class MeetingRoomScene extends Scene {
     });
 
     // Set up event listeners
-    this.jitsiManager.on('joined', (data) => {
-      console.log('[MeetingRoomScene] Joined Jitsi room:', data.roomName);
+    this.jitsiManager.on('joined', (data: unknown) => {
+      const joinData = data as JitsiJoinedData;
+      console.log('[MeetingRoomScene] Joined Jitsi room:', joinData.roomName);
       this.updateZoneUI(true);
     });
 
@@ -329,11 +392,12 @@ export class MeetingRoomScene extends Scene {
       this.currentJitsiZone = null;
     });
 
-    this.jitsiManager.on('participantJoined', (data) => {
-      this.showNotification(`${data.displayName} joined the meeting`);
+    this.jitsiManager.on('participantJoined', (data: unknown) => {
+      const participantData = data as JitsiParticipantData;
+      this.showNotification(`${participantData.displayName} joined the meeting`);
     });
 
-    this.jitsiManager.on('participantLeft', (data) => {
+    this.jitsiManager.on('participantLeft', (_data: unknown) => {
       this.showNotification(`Someone left the meeting`);
     });
 
@@ -470,7 +534,7 @@ export class MeetingRoomScene extends Scene {
     );
     
     // Controls are disabled if flag is false OR if an input is focused
-    return (window as any).gameControlsEnabled === false || isInputFocused === true;
+    return !GameBridge.gameControlsEnabled || isInputFocused === true;
   }
 
   private setupInput(): void {
@@ -512,10 +576,48 @@ export class MeetingRoomScene extends Scene {
     });
   }
 
+  private initMobileControls(): void {
+    // Only create mobile controls on mobile devices
+    if (!isMobileDevice()) return;
+    
+    this.mobileControls = new MobileControlsManager(this, true);
+    
+    // Pass to player for joystick input
+    if (this.player) {
+      this.player.setMobileControls(this.mobileControls);
+    }
+    
+    // Set up action button callbacks
+    this.mobileControls.setCallbacks({
+      onActionA: () => {
+        // A button = join/leave Jitsi call (same as SPACE key)
+        if (this.currentJitsiZone && this.jitsiManager) {
+          if (this.jitsiManager.isInRoom()) {
+            this.jitsiManager.leaveRoom();
+          } else {
+            this.jitsiManager.joinRoom(this.currentJitsiZone);
+            this.hideJitsiPrompt();
+          }
+        }
+      },
+      onActionB: () => {
+        // B button = exit room (same as ESC key)
+        this.exitRoom();
+      },
+    });
+    
+    console.log('[MeetingRoomScene] Mobile controls initialized');
+  }
+
   update(): void {
     if (this.player) {
       this.player.update();
       this.checkJitsiProximity();
+    }
+    
+    // Update multiplayer (interpolation for remote players)
+    if (this.multiplayer) {
+      this.multiplayer.update();
     }
   }
 
@@ -724,21 +826,28 @@ export class MeetingRoomScene extends Scene {
       this.miniMap.destroy();
       this.miniMap = null;
     }
+    
+    // Cleanup mobile controls
+    if (this.mobileControls) {
+      this.mobileControls.destroy();
+      this.mobileControls = null;
+    }
+    
+    // Change multiplayer room back to town (keep connection alive)
+    if (this.multiplayer) {
+      this.multiplayer.changeRoom('town');
+    }
 
     // Update URL
     window.history.pushState({}, '', '/town');
 
-    // Show transition and go back to town
-    if ((window as any).showTransition) {
-      (window as any).showTransition(
-        `/assets/sprites/${this.playerAvatar}.png`,
-        'Returning to town...',
-        () => {
-          this.scene.start('town-scene');
-        }
-      );
-    } else {
-      this.scene.start('town-scene');
-    }
+    // Show transition and go back to town (GameBridge handles fallback if not registered)
+    GameBridge.showTransition(
+      `/assets/sprites/${this.playerAvatar}.png`,
+      'Returning to town...',
+      () => {
+        this.scene.start('town-scene');
+      }
+    );
   }
 }

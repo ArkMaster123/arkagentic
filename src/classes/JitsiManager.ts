@@ -11,10 +11,65 @@
 
 import { playJoinSound, playLeaveSound, playPlayerNearbySound } from '../utils/sounds';
 
+// Jitsi Meet External API types
+interface JitsiMeetAPIOptions {
+  roomName: string;
+  parentNode?: HTMLElement;
+  width?: string | number;
+  height?: string | number;
+  configOverwrite?: Record<string, unknown>;
+  interfaceConfigOverwrite?: Record<string, unknown>;
+  jwt?: string;
+  userInfo?: {
+    displayName?: string;
+    email?: string;
+  };
+}
+
+interface JitsiParticipant {
+  id: string;
+  displayName?: string;
+}
+
+// Event data types from Jitsi API
+interface JitsiConferenceJoinedData {
+  roomName: string;
+  id: string;
+  displayName: string;
+}
+
+interface JitsiParticipantData {
+  id: string;
+  displayName?: string;
+}
+
+interface JitsiMuteData {
+  muted: boolean;
+}
+
+interface JitsiErrorData {
+  error: unknown;
+  message?: string;
+}
+
+interface JitsiMeetAPI {
+  dispose(): void;
+  executeCommand(command: string, ...args: unknown[]): void;
+  addListener(event: string, callback: (data: unknown) => void): void;
+  removeListener(event: string, callback: (data: unknown) => void): void;
+  getParticipantsInfo(): JitsiParticipant[];
+  isAudioMuted(): Promise<boolean>;
+  isVideoMuted(): Promise<boolean>;
+}
+
+interface JitsiMeetExternalAPIConstructor {
+  new (domain: string, options: JitsiMeetAPIOptions): JitsiMeetAPI;
+}
+
 // Declare the external Jitsi API type
 declare global {
   interface Window {
-    JitsiMeetExternalAPI: any;
+    JitsiMeetExternalAPI: JitsiMeetExternalAPIConstructor;
   }
 }
 
@@ -54,10 +109,10 @@ export interface JitsiConfig {
   useRandomRoomSuffix?: boolean;
 }
 
-type JitsiEventCallback = (data: any) => void;
+type JitsiEventCallback = (data: unknown) => void;
 
 export class JitsiManager {
-  private api: any = null;
+  private api: JitsiMeetAPI | null = null;
   private currentZone: JitsiZone | null = null;
   private container: HTMLElement | null = null;        // The iframe container (jitsi-frame)
   private wrapperContainer: HTMLElement | null = null; // The outer wrapper (jitsi-container)
@@ -403,7 +458,8 @@ export class JitsiManager {
   private setupEventListeners(): void {
     if (!this.api) return;
 
-    this.api.addListener('videoConferenceJoined', (data: any) => {
+    this.api.addListener('videoConferenceJoined', (rawData: unknown) => {
+      const data = rawData as JitsiConferenceJoinedData;
       console.log('[JitsiManager] Conference joined:', data.roomName);
       this.emit('joined', {
         roomName: data.roomName,
@@ -418,7 +474,8 @@ export class JitsiManager {
       this.emit('left', {});
     });
 
-    this.api.addListener('participantJoined', (data: any) => {
+    this.api.addListener('participantJoined', (rawData: unknown) => {
+      const data = rawData as JitsiParticipantData;
       console.log('[JitsiManager] Participant joined:', data.displayName);
       this.emit('participantJoined', {
         id: data.id,
@@ -426,21 +483,24 @@ export class JitsiManager {
       });
     });
 
-    this.api.addListener('participantLeft', (data: any) => {
+    this.api.addListener('participantLeft', (rawData: unknown) => {
+      const data = rawData as JitsiParticipantData;
       console.log('[JitsiManager] Participant left:', data.id);
       this.emit('participantLeft', { id: data.id });
     });
 
-    this.api.addListener('audioMuteStatusChanged', (data: any) => {
+    this.api.addListener('audioMuteStatusChanged', (rawData: unknown) => {
+      const data = rawData as JitsiMuteData;
       this.emit('audioMuteChanged', { muted: data.muted });
     });
 
-    this.api.addListener('videoMuteStatusChanged', (data: any) => {
+    this.api.addListener('videoMuteStatusChanged', (rawData: unknown) => {
+      const data = rawData as JitsiMuteData;
       this.emit('videoMuteChanged', { muted: data.muted });
     });
 
     // Handle errors
-    this.api.addListener('errorOccurred', (error: any) => {
+    this.api.addListener('errorOccurred', (error: unknown) => {
       console.error('[JitsiManager] Error:', error);
       this.emit('error', error);
     });
@@ -489,7 +549,7 @@ export class JitsiManager {
     return this.currentZone;
   }
 
-  public getParticipants(): any[] {
+  public getParticipants(): JitsiParticipant[] {
     return this.api?.getParticipantsInfo() || [];
   }
 
@@ -514,7 +574,7 @@ export class JitsiManager {
     }
   }
 
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     const callbacks = this.listeners.get(event) || [];
     callbacks.forEach(cb => cb(data));
   }

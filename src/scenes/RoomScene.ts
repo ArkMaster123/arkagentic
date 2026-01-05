@@ -4,8 +4,28 @@ import { DIRECTION } from '../utils';
 import { getIconSpan } from '../icons';
 import { MiniMap } from '../classes/MiniMap';
 import { Player } from '../classes/Player';
+import { MultiplayerManager } from '../classes/MultiplayerManager';
+import { MobileControlsManager, isMobileDevice } from '../classes/MobileControls';
+import { GameBridge } from '../core';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
+
+// Type for Tiled object properties
+interface TiledProperty {
+  name: string;
+  type: string;
+  value: string | number | boolean;
+}
+
+// Type for interactive objects in the room
+interface InteractiveObject {
+  name?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  properties?: TiledProperty[];
+}
 
 // Room configurations for each agent
 const ROOM_CONFIGS: Record<string, {
@@ -54,7 +74,7 @@ export class RoomScene extends Scene {
   private agentNameTag!: GameObjects.Text;
   private speechBubble: GameObjects.Container | null = null;
   private map!: Tilemaps.Tilemap;
-  private interactiveObjects: { obj: any; hitArea: GameObjects.Rectangle }[] = [];
+  private interactiveObjects: { obj: InteractiveObject; hitArea: GameObjects.Rectangle }[] = [];
   
   // Agent movement properties
   private agentDirection: number = DIRECTION.DOWN;
@@ -65,8 +85,14 @@ export class RoomScene extends Scene {
   public rexUI!: UIPlugin;
   public rexBoard!: BoardPlugin;
   
+  // Multiplayer
+  private multiplayer: MultiplayerManager | null = null;
+  
   // Mini-map
   private miniMap: MiniMap | null = null;
+  
+  // Mobile controls
+  private mobileControls: MobileControlsManager | null = null;
 
   constructor() {
     super('room-scene');
@@ -86,16 +112,41 @@ export class RoomScene extends Scene {
     this.createAgent();
     this.setupInteractiveObjects();
     this.setupInput();
+    this.initMultiplayer();
+    this.initMobileControls();
     
     // Configure UI camera to ignore game world objects (must be called after all objects are created)
     this.configureUICameraIgnore();
     
     // Hide transition after room is ready
-    setTimeout(() => {
-      if ((window as any).hideTransition) {
-        (window as any).hideTransition();
+    this.time.delayedCall(500, () => {
+      GameBridge.hideTransition();
+    });
+  }
+  
+  /**
+   * Initialize or transfer multiplayer connection
+   * Reuses existing connection from GameBridge if available
+   */
+  private initMultiplayer(): void {
+    // Check if we have an existing multiplayer manager from another scene
+    if (GameBridge.multiplayerManager) {
+      console.log(`[RoomScene] Reusing existing multiplayer connection for ${this.agentType} room`);
+      this.multiplayer = GameBridge.multiplayerManager;
+      
+      // Get the room slug for this agent room
+      const roomSlug = GameBridge.getAgentRoute(this.agentType);
+      
+      // Transfer the manager to this scene (recreates sprites for this scene)
+      this.multiplayer.transferToScene(this);
+      
+      // Change room to this agent's room if not already there
+      if (this.multiplayer.getCurrentRoom() !== roomSlug) {
+        this.multiplayer.changeRoom(roomSlug);
       }
-    }, 500);
+    } else {
+      console.log('[RoomScene] No existing multiplayer connection');
+    }
   }
 
   private createRoomFromTilemap(): void {
@@ -207,7 +258,7 @@ export class RoomScene extends Scene {
         hitArea.setDepth(500);
 
         // Get custom properties
-        const messageProp = obj.properties?.find((p: any) => p.name === 'message');
+        const messageProp = obj.properties?.find((p: TiledProperty) => p.name === 'message');
         const message = messageProp?.value || `This is ${obj.name}`;
 
         // Hover effect
@@ -607,6 +658,28 @@ export class RoomScene extends Scene {
     });
   }
 
+  private initMobileControls(): void {
+    // Only create mobile controls on mobile devices
+    if (!isMobileDevice()) return;
+    
+    this.mobileControls = new MobileControlsManager(this, true);
+    
+    // Set up action button callbacks
+    // RoomScene doesn't have a player to move, but we still need exit button
+    this.mobileControls.setCallbacks({
+      onActionA: () => {
+        // A button could be used to trigger agent interaction
+        // For now, no specific action - chat is in sidebar
+      },
+      onActionB: () => {
+        // B button = exit room (same as ESC key)
+        this.exitRoom();
+      },
+    });
+    
+    console.log('[RoomScene] Mobile controls initialized');
+  }
+
   // Walk to an object and then speak
   private walkToAndSpeak(targetX: number, targetY: number, message: string): void {
     // If already moving, cancel current movement
@@ -770,20 +843,28 @@ export class RoomScene extends Scene {
       this.miniMap = null;
     }
     
+    // Cleanup mobile controls
+    if (this.mobileControls) {
+      this.mobileControls.destroy();
+      this.mobileControls = null;
+    }
+    
+    // Change multiplayer room back to town (keep connection alive)
+    if (this.multiplayer) {
+      this.multiplayer.changeRoom('town');
+    }
+    
     // Update URL to town
     window.history.pushState({}, '', '/town');
     
-    if ((window as any).showTransition) {
-      (window as any).showTransition(
-        `/assets/sprites/${agentConfig.sprite}.png`,
-        'Returning to town...',
-        () => {
-          this.scene.start('town-scene');
-        }
-      );
-    } else {
-      this.scene.start('town-scene');
-    }
+    // Show transition (GameBridge handles fallback if not registered)
+    GameBridge.showTransition(
+      `/assets/sprites/${agentConfig.sprite}.png`,
+      'Returning to town...',
+      () => {
+        this.scene.start('town-scene');
+      }
+    );
   }
 
   update(): void {
@@ -809,6 +890,11 @@ export class RoomScene extends Scene {
         this.speechBubbleSize.height
       );
       this.speechBubble.setPosition(clampedPos.x, clampedPos.y);
+    }
+    
+    // Update multiplayer (interpolation for remote players)
+    if (this.multiplayer) {
+      this.multiplayer.update();
     }
   }
 }

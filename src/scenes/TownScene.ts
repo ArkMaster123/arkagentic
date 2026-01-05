@@ -5,9 +5,11 @@ import { MultiplayerManager } from '../classes/MultiplayerManager';
 import { JitsiManager, JitsiZone } from '../classes/JitsiManager';
 import eventsCenter from '../classes/EventCenter';
 import { MiniMap } from '../classes/MiniMap';
+import { MobileControlsManager, isMobileDevice } from '../classes/MobileControls';
 import { AGENTS, AGENT_COLORS, MEETING_POINT, COLOR_PRIMARY, COLOR_LIGHT, COLOR_DARK, API_BASE_URL, JITSI_CONFIG, JITSI_ZONES } from '../constants';
-import { DIRECTION, routeQuery } from '../utils';
+import { DIRECTION, routeQuery, escapeHtml } from '../utils';
 import { getIconSpan } from '../icons';
+import { GameBridge, StorageService } from '../core';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 import type { Board, QuadGrid } from 'phaser3-rex-plugins/plugins/board-components';
@@ -45,7 +47,6 @@ export class TownScene extends Scene {
   // Track which tiles are blocked (walls, trees, houses, agents)
   private blockedTiles: Set<string> = new Set();
   
-  private inputBox: any = null;
   private conversationHistory: ConversationMessage[] = [];
   private isProcessing: boolean = false;
   
@@ -84,6 +85,9 @@ export class TownScene extends Scene {
   private nearbyAgent: { type: string; agent: Agent } | null = null;
   private agentChatPrompt: GameObjects.Container | null = null;
   private readonly AGENT_CHAT_DISTANCE = 50; // pixels
+  
+  // Mobile controls
+  private mobileControls: MobileControlsManager | null = null;
 
   // Building zones for door detection (pixel coordinates)
   // Based on visible buildings in the tilemap - doors are at bottom of each building
@@ -137,6 +141,7 @@ export class TownScene extends Scene {
     this.initCamera();
     this.initUI();
     this.initMultiplayer();
+    this.initMobileControls();
     // Jitsi disabled in town - only available in Meeting Rooms
     // this.initJitsi();
     this.createMeetingRoomSign();
@@ -150,11 +155,9 @@ export class TownScene extends Scene {
     }
     
     // Hide any transition overlay (in case we came from another scene)
-    setTimeout(() => {
-      if ((window as any).hideTransition) {
-        (window as any).hideTransition();
-      }
-    }, 500);
+    this.time.delayedCall(500, () => {
+      GameBridge.hideTransition();
+    });
   }
 
   /**
@@ -308,8 +311,8 @@ export class TownScene extends Scene {
   }
   
   private handleEdgePanning(delta: number): void {
-    // Don't pan if dialog is open
-    if (this.inputBox) return;
+    // Don't pan if controls are disabled (e.g., typing in chat)
+    if (this.areControlsDisabled()) return;
     
     const pointer = this.input.activePointer;
     const cam = this.cameras.main;
@@ -559,6 +562,40 @@ export class TownScene extends Scene {
     console.log(`[TownScene] Player spawned as ${this.playerName} with avatar ${this.playerAvatar}`);
   }
 
+  private initMobileControls(): void {
+    // Only create mobile controls on mobile devices
+    if (!isMobileDevice()) return;
+    
+    this.mobileControls = new MobileControlsManager(this, true);
+    
+    // Pass to player for joystick input
+    if (this.player) {
+      this.player.setMobileControls(this.mobileControls);
+    }
+    
+    // Set up action button callbacks
+    this.mobileControls.setCallbacks({
+      onActionA: () => {
+        // A button = primary action (same as SPACE key)
+        // Enter doors, start agent chats, confirm dialogs
+        if (this.nearbyDoor) {
+          this.enterBuilding(this.nearbyDoor);
+        } else if (this.nearMeetingRoomEntrance) {
+          this.enterMeetingRooms();
+        } else if (this.nearbyAgent) {
+          this.startAgentChat();
+        }
+      },
+      onActionB: () => {
+        // B button = secondary action (same as ESC key)
+        // Cancel, close dialogs, exit conversations
+        this.closeAllPrompts();
+      },
+    });
+    
+    console.log('[TownScene] Mobile controls initialized');
+  }
+
   private initCamera(): void {
     // Use the tilemap's pixel dimensions for bounds
     const mapWidth = this.map.widthInPixels;
@@ -582,26 +619,53 @@ export class TownScene extends Scene {
   }
   
   private async initMultiplayer(): Promise<void> {
+    // Check if we have an existing multiplayer connection from another scene
+    if (GameBridge.multiplayerManager && GameBridge.multiplayerManager.isOnline()) {
+      console.log('[TownScene] Reusing existing multiplayer connection');
+      this.multiplayer = GameBridge.multiplayerManager;
+      
+      // Transfer to this scene (recreates sprites)
+      this.multiplayer.transferToScene(this);
+      
+      // Change room to town if not already there
+      if (this.multiplayer.getCurrentRoom() !== 'town') {
+        this.multiplayer.changeRoom('town');
+      }
+      
+      // Set up position update callback for the player
+      if (this.player) {
+        this.player.onPositionChange = (x, y, direction, isMoving, animation) => {
+          if (this.multiplayer) {
+            this.multiplayer.sendPosition(x, y, direction, isMoving, animation);
+          }
+        };
+      }
+      
+      this.updatePlayerCount();
+      GameBridge.updatePlayerCount(this.multiplayer.getPlayerCount());
+      return;
+    }
+    
+    // No existing connection - create new one
     this.multiplayer = new MultiplayerManager(this);
     
-    // Expose to window for room chat integration
-    (window as any).multiplayerManager = this.multiplayer;
+    // Expose to GameBridge for room chat integration
+    GameBridge.multiplayerManager = this.multiplayer;
     
     // Try to connect to multiplayer server with player info
+    const session = StorageService.getSessionCredentials();
     const connected = await this.multiplayer.connect('town', {
       displayName: this.playerName,
       avatarSprite: this.playerAvatar,
-      userId: localStorage.getItem('arkagentic_user_id') || undefined,
+      userId: session?.userId,
     });
     
     if (connected) {
       console.log('[TownScene] Multiplayer connected!');
       this.updatePlayerCount();
       
-      // Update the room chat player count
-      if ((window as any).updatePlayerCount) {
-        (window as any).updatePlayerCount(this.multiplayer.getPlayerCount());
-      }
+      // Update the room chat player count via GameBridge
+      GameBridge.updatePlayerCount(this.multiplayer.getPlayerCount());
     } else {
       console.log('[TownScene] Multiplayer offline - playing solo');
     }
@@ -626,9 +690,10 @@ export class TownScene extends Scene {
     }));
     
     // Set up event listeners
-    this.jitsiManager.on('joined', (data) => {
-      console.log('[TownScene] Joined Jitsi room:', data.roomName);
-      this.updateJitsiUI(true, data.roomName);
+    this.jitsiManager.on('joined', (data: unknown) => {
+      const joinData = data as { roomName?: string };
+      console.log('[TownScene] Joined Jitsi room:', joinData.roomName);
+      this.updateJitsiUI(true, joinData.roomName);
     });
     
     this.jitsiManager.on('left', () => {
@@ -637,9 +702,10 @@ export class TownScene extends Scene {
       this.currentJitsiZone = null;
     });
     
-    this.jitsiManager.on('participantJoined', (data) => {
+    this.jitsiManager.on('participantJoined', (data: unknown) => {
+      const participantData = data as { displayName?: string };
       // Could show a notification or update UI
-      console.log('[TownScene] Participant joined:', data.displayName);
+      console.log('[TownScene] Participant joined:', participantData.displayName);
     });
     
     // Set up UI button handlers
@@ -940,22 +1006,18 @@ export class TownScene extends Scene {
     
     console.log(`[TownScene] Starting chat with ${agentConfig?.name || agentType}`);
     
-    // Select this agent in the UI
-    if ((window as any).selectAgentForChat) {
-      // Use the function from index.html if available
-      const event = new CustomEvent('selectAgentForChat', { detail: { agentId: agentType } });
-      window.dispatchEvent(event);
-    }
-    
-    // Set the selected agent directly
-    (window as any).selectedChatAgent = agentType;
+    // Select this agent in the UI via GameBridge
+    GameBridge.selectAgentForChat(agentType);
     
     // Update UI to show selected agent
     const chatTitle = document.getElementById('chat-title');
     if (chatTitle && agentConfig) {
+      // Escape user-controlled content to prevent XSS
+      const safeName = escapeHtml(agentConfig.name);
+      const safeEmoji = escapeHtml(agentConfig.emoji);
       chatTitle.innerHTML = `
-        <span class="${agentConfig.emoji}" style="color: #e94560;"></span>
-        Chat with ${agentConfig.name}
+        <span class="${safeEmoji}" style="color: #e94560;"></span>
+        Chat with ${safeName}
         <button id="clear-agent-btn" onclick="clearAgentSelection()">x</button>
       `;
     }
@@ -975,9 +1037,7 @@ export class TownScene extends Scene {
     });
     
     // Switch to agent chat tab
-    if ((window as any).switchChatTab) {
-      (window as any).switchChatTab('agent');
-    }
+    GameBridge.switchChatTab('agent');
     
     // Focus the chat input
     if (chatInput) {
@@ -997,16 +1057,16 @@ export class TownScene extends Scene {
   
   /**
    * Cleanup before transitioning to another scene
-   * This prevents ghost/clone players when returning
+   * Keeps multiplayer connection alive but cleans up scene-specific resources
    */
-  private cleanupBeforeSceneChange(): void {
+  private cleanupBeforeSceneChange(targetRoom?: string): void {
     console.log('[TownScene] Cleaning up before scene change');
     
-    // Disconnect multiplayer to prevent ghost players
-    if (this.multiplayer) {
-      this.multiplayer.disconnect();
-      this.multiplayer = null;
-      (window as any).multiplayerManager = null;
+    // DON'T disconnect multiplayer - keep the connection alive!
+    // Just tell the server we're changing rooms
+    if (this.multiplayer && targetRoom) {
+      this.multiplayer.changeRoom(targetRoom);
+      // Keep the reference in GameBridge so other scenes can use it
     }
     
     // Clean up Jitsi if active
@@ -1019,6 +1079,12 @@ export class TownScene extends Scene {
       this.miniMap.destroy();
       this.miniMap = null;
     }
+    
+    // Clean up mobile controls
+    if (this.mobileControls) {
+      this.mobileControls.destroy();
+      this.mobileControls = null;
+    }
   }
 
   /**
@@ -1028,32 +1094,24 @@ export class TownScene extends Scene {
     // Disable further input while transitioning
     this.input.enabled = false;
     
-    // Disconnect multiplayer before scene transition to prevent ghost players
-    this.cleanupBeforeSceneChange();
+    // Change room but keep connection alive
+    this.cleanupBeforeSceneChange('meetings');
     
     // Update URL
     window.history.pushState({}, '', '/town/meetings');
     
-    // Show retro transition
-    if ((window as any).showTransition) {
-      (window as any).showTransition(
-        `/assets/sprites/${this.playerAvatar}.png`,
-        'Entering Meeting Rooms...',
-        () => {
-          this.scene.start('meeting-room-scene', {
-            fromTown: true,
-            playerAvatar: this.playerAvatar,
-            playerName: this.playerName,
-          });
-        }
-      );
-    } else {
-      this.scene.start('meeting-room-scene', {
-        fromTown: true,
-        playerAvatar: this.playerAvatar,
-        playerName: this.playerName,
-      });
-    }
+    // Show retro transition via GameBridge
+    GameBridge.showTransition(
+      `/assets/sprites/${this.playerAvatar}.png`,
+      'Entering Meeting Rooms...',
+      () => {
+        this.scene.start('meeting-room-scene', {
+          fromTown: true,
+          playerAvatar: this.playerAvatar,
+          playerName: this.playerName,
+        });
+      }
+    );
   }
   
   private showJitsiPrompt(zone: JitsiZone): void {
@@ -1071,6 +1129,37 @@ export class TownScene extends Scene {
   private hideJitsiPrompt(): void {
     const prompt = document.getElementById('jitsi-prompt');
     prompt?.classList.remove('show');
+  }
+  
+  /**
+   * Close all prompts/UI overlays (used by mobile B button and ESC key)
+   */
+  private closeAllPrompts(): void {
+    // Door prompt
+    if (this.doorPrompt) {
+      this.doorPrompt.destroy();
+      this.doorPrompt = null;
+    }
+    
+    // Meeting room prompt
+    if (this.meetingRoomPrompt) {
+      this.meetingRoomPrompt.destroy();
+      this.meetingRoomPrompt = null;
+    }
+    
+    // Agent chat prompt
+    if (this.agentChatPrompt) {
+      this.agentChatPrompt.destroy();
+      this.agentChatPrompt = null;
+    }
+    
+    // Jitsi prompt
+    this.hideJitsiPrompt();
+    
+    // Clear nearby states
+    this.nearbyDoor = null;
+    this.nearbyAgent = null;
+    this.nearMeetingRoomEntrance = false;
   }
   
   private updateJitsiUI(inCall: boolean, roomName?: string): void {
@@ -1236,18 +1325,18 @@ export class TownScene extends Scene {
     if (type === 'user') {
       messageDiv.innerHTML = `
         <div class="bubble">
-          <p>${this.escapeHtml(content)}</p>
+          <p>${escapeHtml(content)}</p>
         </div>
         <div class="timestamp">${timestamp}</div>
       `;
     } else {
       const agentConfig = agentType ? AGENTS[agentType as keyof typeof AGENTS] : null;
       const iconSpan = agentConfig ? getIconSpan(agentConfig.emoji, 14) : '';
-      const agentName = agentConfig ? `${iconSpan} ${agentConfig.name}` : 'Agent';
+      const agentName = agentConfig ? `${iconSpan} ${escapeHtml(agentConfig.name)}` : 'Agent';
       messageDiv.innerHTML = `
         <div class="agent-name">${agentName}</div>
         <div class="bubble">
-          <p>${this.escapeHtml(content)}</p>
+          <p>${escapeHtml(content)}</p>
         </div>
         <div class="timestamp">${timestamp}</div>
       `;
@@ -1294,11 +1383,7 @@ export class TownScene extends Scene {
     if (chatSend) chatSend.disabled = !enabled;
   }
 
-  private escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
+  // Note: escapeHtml is now imported from utils.ts for XSS protection
 
   private async processQuery(query: string): Promise<void> {
     this.isProcessing = true;
@@ -1308,7 +1393,7 @@ export class TownScene extends Scene {
     this.conversationHistory.push({ role: 'user', content: query });
 
     // Check if a specific agent is selected in the UI
-    const selectedAgent = (window as any).selectedChatAgent;
+    const selectedAgent = GameBridge.selectedChatAgent;
     
     // Route the query to determine which agents should respond
     // If an agent is selected, use that one; otherwise use automatic routing
@@ -1478,7 +1563,7 @@ export class TownScene extends Scene {
   }> {
     try {
       // Get user's preferred AI model
-      const userModel = (window as any).userPreferredModel || 'mistralai/mistral-nemo';
+      const userModel = GameBridge.userPreferredModel;
       
       // Use streaming endpoint for real-time response
       const response = await fetch(`${API_BASE_URL}/chat/stream`, {
@@ -1517,7 +1602,7 @@ export class TownScene extends Scene {
         
         const agentConfig = AGENTS[agentType as keyof typeof AGENTS];
         const iconSpan = agentConfig ? getIconSpan(agentConfig.emoji, 14) : '';
-        const agentName = agentConfig ? `${iconSpan} ${agentConfig.name}` : 'Agent';
+        const agentName = agentConfig ? `${iconSpan} ${escapeHtml(agentConfig.name)}` : 'Agent';
         const now = new Date();
         const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
@@ -1634,16 +1719,7 @@ export class TownScene extends Scene {
    * Controls are disabled when user is typing in chat sidebar
    */
   private areControlsDisabled(): boolean {
-    // Check if an input or textarea is currently focused
-    const activeElement = document.activeElement;
-    const isInputFocused = activeElement && (
-      activeElement.tagName === 'INPUT' || 
-      activeElement.tagName === 'TEXTAREA' || 
-      (activeElement instanceof HTMLElement && activeElement.isContentEditable)
-    );
-    
-    // Controls are disabled if flag is false OR if an input is focused
-    return (window as any).gameControlsEnabled === false || isInputFocused === true;
+    return !GameBridge.areControlsUsable();
   }
 
   private setupEventListeners(): void {
@@ -1861,34 +1937,25 @@ export class TownScene extends Scene {
     // Disable further input while transitioning
     this.input.enabled = false;
     
-    // Disconnect multiplayer before scene transition to prevent ghost players
-    this.cleanupBeforeSceneChange();
+    // Change room but keep connection alive
+    const roomSlug = GameBridge.getAgentRoute(zone.agentType);
+    this.cleanupBeforeSceneChange(roomSlug);
     
     // Update URL with room route
-    const AGENT_TO_ROUTE = (window as any).AGENT_TO_ROUTE || {};
-    const roomSlug = AGENT_TO_ROUTE[zone.agentType] || zone.agentType;
     window.history.pushState({}, '', `/town/${roomSlug}`);
     
-    // Show retro transition
-    if ((window as any).showTransition) {
-      (window as any).showTransition(
-        `/assets/sprites/${agentConfig.sprite}.png`,
-        `Entering ${zone.name}...`,
-        () => {
-          // Start the room scene with the agent type
-          this.scene.start('room-scene', {
-            agentType: zone.agentType,
-            fromTown: true,
-          });
-        }
-      );
-    } else {
-      // Fallback without transition
-      this.scene.start('room-scene', {
-        agentType: zone.agentType,
-        fromTown: true,
-      });
-    }
+    // Show retro transition (GameBridge handles fallback if not registered)
+    GameBridge.showTransition(
+      `/assets/sprites/${agentConfig.sprite}.png`,
+      `Entering ${zone.name}...`,
+      () => {
+        // Start the room scene with the agent type
+        this.scene.start('room-scene', {
+          agentType: zone.agentType,
+          fromTown: true,
+        });
+      }
+    );
   }
 
   /**

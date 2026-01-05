@@ -6,6 +6,7 @@ import { RoomScene } from './scenes/RoomScene';
 import { MeetingRoomScene } from './scenes/MeetingRoomScene';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
+import { GameBridge } from './core';
 
 declare global {
   interface Window {
@@ -35,8 +36,20 @@ const AGENT_TO_ROUTE: Record<string, string> = {
   'meetings': 'meetings',
 };
 
+// Route data types
+interface RoomSceneData {
+  agentType: string;
+  fromTown: boolean;
+}
+
+interface MeetingRoomSceneData {
+  fromTown: boolean;
+}
+
+type SceneData = RoomSceneData | MeetingRoomSceneData | undefined;
+
 // Parse current URL to determine starting scene
-function parseRoute(): { scene: string; data?: any } {
+function parseRoute(): { scene: string; data?: SceneData } {
   const path = window.location.pathname.toLowerCase();
   
   // Check for room routes: /town/researchlab, /town/newsroom, /town/meetings, etc.
@@ -97,8 +110,20 @@ function handleRouteChange() {
 
 // Expose navigation and route helpers globally
 window.navigateTo = navigateTo;
-(window as any).AGENT_TO_ROUTE = AGENT_TO_ROUTE;
-(window as any).ROOM_ROUTES = ROOM_ROUTES;
+
+// Set up GameBridge with route mappings and install on window for backward compatibility
+GameBridge.agentToRoute = AGENT_TO_ROUTE;
+GameBridge.roomRoutes = ROOM_ROUTES;
+GameBridge.installOnWindow();
+
+// Detect mobile device for scaling
+function isMobileDevice(): boolean {
+  const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+  const isMobileUA = mobileRegex.test(navigator.userAgent);
+  const isSmallScreen = window.innerWidth <= 768;
+  return hasTouch && (isMobileUA || isSmallScreen);
+}
 
 export const gameConfig: Types.Core.GameConfig = {
   title: 'AgentVerse - Multi-Agent Collaboration',
@@ -106,9 +131,12 @@ export const gameConfig: Types.Core.GameConfig = {
   parent: 'game',
   backgroundColor: '#1a1a2e',
   scale: {
-    mode: Scale.ScaleModes.NONE,
+    // On mobile, use FIT to scale game to fill screen while maintaining aspect ratio
+    // On desktop, use NONE for fixed 800x600 canvas
+    mode: isMobileDevice() ? Scale.ScaleModes.FIT : Scale.ScaleModes.NONE,
     width: 800,
     height: 600,
+    autoCenter: isMobileDevice() ? Scale.CENTER_BOTH : Scale.NO_CENTER,
   },
   physics: {
     default: 'arcade',
@@ -127,7 +155,8 @@ export const gameConfig: Types.Core.GameConfig = {
       // After game boots, check if we need to navigate to a room
       const route = parseRoute();
       if (route.scene === 'room-scene' && route.data) {
-        // Wait for loading scene to finish, then navigate
+        // Note: Using setTimeout here is intentional - we're outside scene context
+        // and need to wait for Phaser scenes to initialize before navigating
         setTimeout(() => {
           const game = window.game;
           if (game && game.scene) {
@@ -140,6 +169,7 @@ export const gameConfig: Types.Core.GameConfig = {
                 // Town scene is ready, now switch to room
                 game.scene.start('room-scene', route.data);
               } else {
+                // Polling for scene readiness - setTimeout is appropriate here
                 setTimeout(checkAndNavigate, 100);
               }
             };
@@ -175,7 +205,12 @@ export const gameConfig: Types.Core.GameConfig = {
 };
 
 window.sizeChanged = () => {
-  // Game stays at fixed 800x600 - no resize needed
+  // On mobile, Phaser's FIT mode handles resizing automatically
+  // On desktop, game stays at fixed 800x600 - no resize needed
+  if (isMobileDevice() && window.game) {
+    // Trigger Phaser's scale manager to recalculate
+    window.game.scale.refresh();
+  }
 };
 
 window.onresize = () => window.sizeChanged();

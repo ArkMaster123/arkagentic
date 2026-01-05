@@ -3,8 +3,9 @@ import { DIRECTION } from '../utils';
 import { COLOR_PRIMARY, AGENT_COLORS, AGENTS } from '../constants';
 import { getIconSpan } from '../icons';
 import eventsCenter from './EventCenter';
-import type { TownScene } from '../scenes/TownScene';
+import { IAgentScene, isAgentScene } from '../types/scenes';
 import type RexUIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
+import type Label from 'phaser3-rex-plugins/templates/ui/label/Label';
 
 type AgentType = keyof typeof AGENTS;
 
@@ -23,10 +24,10 @@ export class Agent extends Actor {
   public agentType: AgentType;
   public direction: number = DIRECTION.DOWN;
   
-  private textBox: any = undefined;
+  private textBox: Label | undefined;
   private nameTag: Phaser.GameObjects.Text | undefined;
   private isSpeaking: boolean = false;
-  private thoughtBubble: any = undefined;
+  private thoughtBubble: Label | undefined;
   
   // Grid-based movement
   private tileX: number = 0;
@@ -59,18 +60,18 @@ export class Agent extends Actor {
     this.agentType = agentType;
     this.setName(agentConfig.name);
     
-    // Calculate initial tile position
-    const townScene = scene as TownScene;
-    const tilePos = townScene.worldToTile(x, y);
+    // Calculate initial tile position (scene must implement IAgentScene)
+    const agentScene = scene as IAgentScene;
+    const tilePos = agentScene.worldToTile(x, y);
     this.tileX = tilePos.x;
     this.tileY = tilePos.y;
     
     // Snap to tile center
-    const worldPos = townScene.tileToWorld(this.tileX, this.tileY);
+    const worldPos = agentScene.tileToWorld(this.tileX, this.tileY);
     this.setPosition(worldPos.x, worldPos.y);
     
     // Mark initial tile as occupied
-    townScene.occupyTile(this.tileX, this.tileY);
+    agentScene.occupyTile(this.tileX, this.tileY);
     
     // Store home position for wandering
     this.homeTileX = this.tileX;
@@ -145,7 +146,7 @@ export class Agent extends Actor {
   }
 
   update(): void {
-    const townScene = this.scene as TownScene;
+    const agentScene = this.scene as IAgentScene;
     
     // Handle grid-based movement
     if (this.isMovingToTile) {
@@ -207,14 +208,14 @@ export class Agent extends Actor {
   private moveToNextTile(): void {
     if (this.path.length === 0) return;
 
-    const townScene = this.scene as TownScene;
+    const agentScene = this.scene as IAgentScene;
     const nextTile = this.path.shift()!;
     
     // Free current tile
-    townScene.freeTile(this.tileX, this.tileY);
+    agentScene.freeTile(this.tileX, this.tileY);
     
     // Check if next tile is still walkable (another agent might have moved there)
-    if (!townScene.isTileWalkable(nextTile.x, nextTile.y)) {
+    if (!agentScene.isTileWalkable(nextTile.x, nextTile.y)) {
       // Recalculate path
       if (this.path.length > 0) {
         const finalTarget = this.path[this.path.length - 1];
@@ -222,7 +223,7 @@ export class Agent extends Actor {
         this.moveToTile(finalTarget.x, finalTarget.y);
       }
       // Re-occupy current tile since we're not moving
-      townScene.occupyTile(this.tileX, this.tileY);
+      agentScene.occupyTile(this.tileX, this.tileY);
       return;
     }
     
@@ -231,10 +232,10 @@ export class Agent extends Actor {
     this.tileY = nextTile.y;
     
     // Occupy new tile
-    townScene.occupyTile(this.tileX, this.tileY);
+    agentScene.occupyTile(this.tileX, this.tileY);
     
     // Set target world position
-    const worldPos = townScene.tileToWorld(this.tileX, this.tileY);
+    const worldPos = agentScene.tileToWorld(this.tileX, this.tileY);
     this.targetWorldX = worldPos.x;
     this.targetWorldY = worldPos.y;
     this.isMovingToTile = true;
@@ -275,14 +276,14 @@ export class Agent extends Actor {
 
   // Move to a world position (converts to tile and pathfinds)
   public moveToWorld(worldX: number, worldY: number): void {
-    const townScene = this.scene as TownScene;
-    const targetTile = townScene.worldToTile(worldX, worldY);
+    const agentScene = this.scene as IAgentScene;
+    const targetTile = agentScene.worldToTile(worldX, worldY);
     this.moveToTile(targetTile.x, targetTile.y);
   }
 
   // Move to a specific tile using A* pathfinding
   public moveToTile(targetTileX: number, targetTileY: number): void {
-    const townScene = this.scene as TownScene;
+    const agentScene = this.scene as IAgentScene;
     
     // Don't pathfind if already at destination
     if (this.tileX === targetTileX && this.tileY === targetTileY) {
@@ -294,18 +295,18 @@ export class Agent extends Actor {
     this.path = this.findPath(
       this.tileX, this.tileY,
       targetTileX, targetTileY,
-      townScene
+      agentScene
     );
 
     if (this.path.length === 0) {
       console.log(`${this.id}: No path found to (${targetTileX}, ${targetTileY})`);
       // Try to find nearest walkable tile
-      const nearestWalkable = this.findNearestWalkable(targetTileX, targetTileY, townScene);
+      const nearestWalkable = this.findNearestWalkable(targetTileX, targetTileY, agentScene);
       if (nearestWalkable) {
         this.path = this.findPath(
           this.tileX, this.tileY,
           nearestWalkable.x, nearestWalkable.y,
-          townScene
+          agentScene
         );
       }
     }
@@ -320,7 +321,7 @@ export class Agent extends Actor {
   private findPath(
     startX: number, startY: number,
     endX: number, endY: number,
-    scene: TownScene
+    scene: IAgentScene
   ): { x: number; y: number }[] {
     const openSet: PathNode[] = [];
     const closedSet = new Set<string>();
@@ -412,7 +413,7 @@ export class Agent extends Actor {
   // Find nearest walkable tile to target
   private findNearestWalkable(
     targetX: number, targetY: number,
-    scene: TownScene
+    scene: IAgentScene
   ): { x: number; y: number } | null {
     const maxRadius = 10;
     
@@ -467,7 +468,7 @@ export class Agent extends Actor {
   }
 
   private wanderToRandomTile(): void {
-    const townScene = this.scene as TownScene;
+    const agentScene = this.scene as IAgentScene;
     
     // Pick a random tile within wander radius of home
     const attempts = 10;
@@ -479,7 +480,7 @@ export class Agent extends Actor {
       const targetY = this.homeTileY + offsetY;
       
       // Check if tile is walkable and not current position
-      if (townScene.isTileWalkable(targetX, targetY) && 
+      if (agentScene.isTileWalkable(targetX, targetY) && 
           (targetX !== this.tileX || targetY !== this.tileY)) {
         this.moveToTile(targetX, targetY);
         return;
@@ -517,8 +518,8 @@ export class Agent extends Actor {
     this.destroyTextBox();
     this.isSpeaking = true;
 
-    const scene = this.scene as TownScene;
-    const rexUI = scene.rexUI as RexUIPlugin;
+    const agentScene = this.scene as IAgentScene;
+    const rexUI = agentScene.rexUI as RexUIPlugin;
     const scale = this.scene.cameras.main.zoom;
 
     this.textBox = rexUI.add
@@ -533,7 +534,7 @@ export class Agent extends Actor {
           0.9
         ),
         text: rexUI.wrapExpandText(
-          scene.add.text(0, 0, text, {
+          agentScene.add.text(0, 0, text, {
             fontSize: '10px',
             wordWrap: { width: 100 },
           })
@@ -554,8 +555,8 @@ export class Agent extends Actor {
   public think(text: string): void {
     this.destroyThoughtBubble();
 
-    const scene = this.scene as TownScene;
-    const rexUI = scene.rexUI as RexUIPlugin;
+    const agentScene = this.scene as IAgentScene;
+    const rexUI = agentScene.rexUI as RexUIPlugin;
     const scale = this.scene.cameras.main.zoom;
 
     this.thoughtBubble = rexUI.add
@@ -568,7 +569,7 @@ export class Agent extends Actor {
           0x333333,
           0.7
         ),
-        text: scene.add.text(0, 0, `💭 ${text}`, {
+        text: agentScene.add.text(0, 0, `💭 ${text}`, {
           fontSize: '8px',
           color: '#ffffff',
         }),
@@ -616,10 +617,9 @@ export class Agent extends Actor {
   }
 
   destroy(fromScene?: boolean): void {
-    // Free the tile we're occupying (only if scene has freeTile method)
-    const townScene = this.scene as TownScene;
-    if (townScene && typeof townScene.freeTile === 'function') {
-      townScene.freeTile(this.tileX, this.tileY);
+    // Free the tile we're occupying (only if scene implements IAgentScene)
+    if (isAgentScene(this.scene)) {
+      this.scene.freeTile(this.tileX, this.tileY);
     }
     
     // Stop wandering timer
@@ -633,9 +633,14 @@ export class Agent extends Actor {
     if (this.nameTag) {
       this.nameTag.destroy();
     }
+    // Clean up ALL event listeners (must match those registered in constructor)
     eventsCenter.off(`${this.id}-moveTo`);
     eventsCenter.off(`${this.id}-speak`);
     eventsCenter.off(`${this.id}-think`);
+    eventsCenter.off(`${this.id}-up`);
+    eventsCenter.off(`${this.id}-down`);
+    eventsCenter.off(`${this.id}-left`);
+    eventsCenter.off(`${this.id}-right`);
     super.destroy(fromScene);
   }
 }

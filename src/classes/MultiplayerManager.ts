@@ -1,5 +1,6 @@
 import { Client, Room, getStateCallbacks } from 'colyseus.js';
 import { Scene, GameObjects } from 'phaser';
+import { GameBridge } from '../core';
 
 // Type definitions matching server schema
 interface PlayerState {
@@ -16,6 +17,9 @@ interface PlayerState {
   lastUpdate: number;
 }
 
+// Room slug for filtering players by scene
+type RoomSlug = 'town' | 'meetings' | string;
+
 interface PlayersMap {
   forEach: (callback: (player: PlayerState, sessionId: string) => void) => void;
   get: (sessionId: string) => PlayerState | undefined;
@@ -26,6 +30,18 @@ interface GameRoomState {
   roomSlug: string;
   roomName: string;
   maxPlayers: number;
+}
+
+// Message types from server
+interface ChatMessageData {
+  sessionId: string;
+  displayName: string;
+  message: string;
+}
+
+interface PlayerNotificationData {
+  sessionId: string;
+  displayName: string;
 }
 
 interface RemotePlayerSprite extends GameObjects.Sprite {
@@ -51,6 +67,9 @@ export class MultiplayerManager {
   private displayName: string = 'Anonymous';
   private avatarSprite: string = 'brendan';
   private userId: string = '';
+  
+  // Current room slug for filtering players
+  private currentRoomSlug: RoomSlug = 'town';
   
   // Interpolation settings
   private interpolationSpeed: number = 0.15;
@@ -92,6 +111,9 @@ export class MultiplayerManager {
       }
       
       console.log(`[Multiplayer] Joining room: ${roomSlug} as ${this.displayName}`);
+      
+      // Store current room slug for filtering
+      this.currentRoomSlug = roomSlug;
       
       this.room = await this.client.joinOrCreate<GameRoomState>('game', {
         userId: this.userId,
@@ -191,14 +213,17 @@ export class MultiplayerManager {
     // Process existing players first (in case we joined a room with players already in it)
     if (this.room.state.players && typeof this.room.state.players.forEach === 'function') {
       this.room.state.players.forEach((player: PlayerState, sessionId: string) => {
-        console.log(`[Multiplayer] Existing player found: ${player.displayName} (${sessionId})`);
+        console.log(`[Multiplayer] Existing player found: ${player.displayName} (${sessionId}) in room ${player.currentRoom}`);
         
         if (sessionId !== this.room?.sessionId) {
-          this.createRemotePlayer(sessionId, player);
+          // Only create sprite if player is in same room as us
+          if (player.currentRoom === this.currentRoomSlug) {
+            this.createRemotePlayer(sessionId, player);
+          }
           
           // Listen for position changes on this player using $ wrapper
           $(player).onChange(() => {
-            this.updateRemotePlayer(sessionId, player);
+            this.updateRemotePlayerWithRoomCheck(sessionId, player);
           });
         }
       });
@@ -206,7 +231,7 @@ export class MultiplayerManager {
     
     // Listen for NEW player additions using Colyseus 0.16+ API
     ($(this.room.state).players as any).onAdd((player: PlayerState, sessionId: string) => {
-      console.log(`[Multiplayer] Player joined (onAdd): ${player.displayName} (${sessionId})`);
+      console.log(`[Multiplayer] Player joined (onAdd): ${player.displayName} (${sessionId}) in room ${player.currentRoom}`);
       
       // Don't render ourselves as a remote player
       if (sessionId === this.room?.sessionId) {
@@ -220,13 +245,14 @@ export class MultiplayerManager {
         return;
       }
       
-      // Create sprite for remote player
-      this.createRemotePlayer(sessionId, player);
+      // Only create sprite if player is in same room as us
+      if (player.currentRoom === this.currentRoomSlug) {
+        this.createRemotePlayer(sessionId, player);
+      }
       
       // Listen for position/state changes on this player using $ wrapper
       $(player).onChange(() => {
-        console.log(`[Multiplayer] Player ${player.displayName} moved to (${player.x}, ${player.y})`);
-        this.updateRemotePlayer(sessionId, player);
+        this.updateRemotePlayerWithRoomCheck(sessionId, player);
       });
     });
     
@@ -237,16 +263,14 @@ export class MultiplayerManager {
     });
     
     // Listen for chat messages
-    this.room.onMessage('chat', (data: any) => {
+    this.room.onMessage('chat', (data: ChatMessageData) => {
       console.log(`[Chat] ${data.displayName}: ${data.message}`);
       
       // Don't show our own messages again (we add them optimistically)
       const isSelf = data.sessionId === this.room?.sessionId;
       if (!isSelf) {
         // Add to room chat UI
-        if ((window as any).addRoomChatMessage) {
-          (window as any).addRoomChatMessage(data.displayName, data.message, false);
-        }
+        GameBridge.addRoomChatMessage(data.displayName, data.message, false);
         
         // Show chat bubble over the player's sprite
         const sprite = this.remotePlayers.get(data.sessionId);
@@ -257,21 +281,17 @@ export class MultiplayerManager {
     });
     
     // Listen for player joined messages (backup notification)
-    this.room.onMessage('playerJoined', (data: any) => {
+    this.room.onMessage('playerJoined', (data: PlayerNotificationData) => {
       console.log(`[Multiplayer] Player joined notification: ${data.displayName} (${data.sessionId})`);
       
-      if ((window as any).addRoomChatMessage) {
-        (window as any).addRoomChatMessage('', `${data.displayName} joined the room`, false, true);
-      }
+      GameBridge.addRoomChatMessage('', `${data.displayName} joined the room`, false, true);
       this.updatePlayerCountUI();
     });
     
     // Listen for player left messages
-    this.room.onMessage('playerLeft', (data: any) => {
+    this.room.onMessage('playerLeft', (data: PlayerNotificationData) => {
       console.log(`[Multiplayer] Player left notification: ${data.displayName}`);
-      if ((window as any).addRoomChatMessage) {
-        (window as any).addRoomChatMessage('', `${data.displayName} left the room`, false, true);
-      }
+      GameBridge.addRoomChatMessage('', `${data.displayName} left the room`, false, true);
       this.updatePlayerCountUI();
     });
     
@@ -354,6 +374,34 @@ export class MultiplayerManager {
     
     // Update animation
     this.playRemoteAnimation(sprite, player.avatarSprite, player.animation);
+  }
+  
+  /**
+   * Update a remote player with room filtering
+   * Shows/hides player based on whether they're in the same room as us
+   */
+  private updateRemotePlayerWithRoomCheck(sessionId: string, player: PlayerState): void {
+    const isInSameRoom = player.currentRoom === this.currentRoomSlug;
+    const sprite = this.remotePlayers.get(sessionId);
+    
+    if (isInSameRoom) {
+      // Player is in our room - create sprite if needed, update position
+      if (!sprite) {
+        console.log(`[Multiplayer] Player ${player.displayName} entered our room ${this.currentRoomSlug}`);
+        this.createRemotePlayer(sessionId, player);
+      } else {
+        sprite.setVisible(true);
+        sprite.displayNameText?.setVisible(true);
+        this.updateRemotePlayer(sessionId, player);
+      }
+    } else {
+      // Player is in different room - hide or remove sprite
+      if (sprite) {
+        console.log(`[Multiplayer] Player ${player.displayName} left our room (now in ${player.currentRoom})`);
+        sprite.setVisible(false);
+        sprite.displayNameText?.setVisible(false);
+      }
+    }
   }
 
   /**
@@ -478,11 +526,59 @@ export class MultiplayerManager {
 
   /**
    * Change room (for scene transitions)
+   * This keeps the connection alive but updates which room the player is in
    */
-  changeRoom(roomSlug: string): void {
+  changeRoom(roomSlug: RoomSlug): void {
     if (!this.room || !this.isConnected) return;
     
+    console.log(`[Multiplayer] Changing room from ${this.currentRoomSlug} to ${roomSlug}`);
+    this.currentRoomSlug = roomSlug;
+    
+    // Tell server we changed rooms
     this.room.send('changeRoom', { roomSlug });
+    
+    // Hide all remote players (they'll be shown again if in same room)
+    this.remotePlayers.forEach((sprite, sessionId) => {
+      sprite.setVisible(false);
+      sprite.displayNameText?.setVisible(false);
+    });
+  }
+  
+  /**
+   * Get current room slug
+   */
+  getCurrentRoom(): RoomSlug {
+    return this.currentRoomSlug;
+  }
+  
+  /**
+   * Transfer this manager to a new scene
+   * Called when transitioning between scenes to keep the connection alive
+   */
+  transferToScene(newScene: Scene): void {
+    console.log(`[Multiplayer] Transferring to new scene`);
+    
+    // Clean up sprites from old scene (they belong to old scene's display list)
+    this.remotePlayers.forEach((sprite, sessionId) => {
+      sprite.displayNameText?.destroy();
+      sprite.destroy();
+    });
+    this.remotePlayers.clear();
+    
+    // Update scene reference
+    this.scene = newScene;
+    
+    // Recreate sprites for existing players in the new scene
+    if (this.room && this.room.state && this.room.state.players) {
+      this.room.state.players.forEach((player: PlayerState, sessionId: string) => {
+        if (sessionId !== this.room?.sessionId) {
+          // Only create sprite if player is in same room
+          if (player.currentRoom === this.currentRoomSlug) {
+            this.createRemotePlayer(sessionId, player);
+          }
+        }
+      });
+    }
   }
 
   /**
@@ -610,8 +706,6 @@ export class MultiplayerManager {
    * Update the player count in the UI
    */
   private updatePlayerCountUI(): void {
-    if ((window as any).updatePlayerCount) {
-      (window as any).updatePlayerCount(this.getPlayerCount());
-    }
+    GameBridge.updatePlayerCount(this.getPlayerCount());
   }
 }

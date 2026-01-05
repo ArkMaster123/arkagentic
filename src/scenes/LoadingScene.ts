@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { AGENTS } from '../constants';
+import { StorageService, ApiService, STORAGE_KEYS } from '../core';
 
 export class LoadingScene extends Scene {
   constructor() {
@@ -93,59 +94,51 @@ export class LoadingScene extends Scene {
       joseph: { width: 14, height: 21 },
     };
     
+    // Note: We load all character sprites unconditionally since the check
+    // for existing textures happens BEFORE load completes in preload().
+    // Phaser's loader handles duplicates gracefully, so this is safe.
     Object.entries(allCharacters).forEach(([key, size]) => {
-      // Only load if not already loaded (some may be loaded as agent sprites)
-      if (!this.textures.exists(key)) {
-        this.load.spritesheet(key, `/assets/sprites/${key}.png`, {
-          frameWidth: size.width,
-          frameHeight: size.height,
-        });
-      }
+      this.load.spritesheet(key, `/assets/sprites/${key}.png`, {
+        frameWidth: size.width,
+        frameHeight: size.height,
+      });
     });
   }
 
   async create(): Promise<void> {
-    const userId = localStorage.getItem('arkagentic_user_id');
-    const sessionToken = localStorage.getItem('arkagentic_session_token');
+    // Use StorageService for all credential access
+    const session = StorageService.getSessionCredentials();
+    const offline = StorageService.getOfflineCredentials();
     
-    // Check for offline mode credentials
-    const offlineName = localStorage.getItem('arkagentic_offline_name');
-    const offlineAvatar = localStorage.getItem('arkagentic_offline_avatar');
-    
-    if (userId && sessionToken) {
+    if (session) {
       // We have credentials - validate session and fetch user from DB
       try {
-        // Step 1: Validate the session token
-        const validateResponse = await fetch(
-          `/api/auth/validate?user_id=${userId}&session_token=${sessionToken}`,
-          { method: 'POST' }
-        );
-        const validation = await validateResponse.json();
+        // Step 1: Validate the session token using ApiService
+        const validation = await ApiService.validateSession(session.userId, session.sessionToken);
         
         if (!validation.valid) {
           console.warn('[Loading] Session invalid - clearing credentials');
-          this.clearCredentials();
+          StorageService.clearCredentials();
           this.scene.start('character-select-scene');
           return;
         }
         
         // Step 2: Fetch fresh user data from database
-        const userResponse = await fetch(`/api/users/${userId}`);
-        if (!userResponse.ok) {
+        const user = await ApiService.getUser(session.userId);
+        if (!user) {
           console.warn('[Loading] User not found in database');
-          this.clearCredentials();
+          StorageService.clearCredentials();
           this.scene.start('character-select-scene');
           return;
         }
         
-        const user = await userResponse.json();
         console.log(`[Loading] Welcome back, ${user.display_name}!`);
         
         this.scene.start('town-scene', {
           playerAvatar: user.avatar_sprite || 'brendan',
           playerName: user.display_name || 'Player',
           userId: user.id,
-          sessionToken: sessionToken,
+          sessionToken: session.sessionToken,
           isNewPlayer: false,
         });
         return;
@@ -153,11 +146,11 @@ export class LoadingScene extends Scene {
       } catch (error) {
         console.error('[Loading] Failed to validate session:', error);
         // Network error - could be offline, try to continue with offline mode
-        if (offlineName && offlineAvatar) {
+        if (offline) {
           console.log('[Loading] Network unavailable - using offline mode');
           this.scene.start('town-scene', {
-            playerAvatar: offlineAvatar,
-            playerName: offlineName,
+            playerAvatar: offline.avatar,
+            playerName: offline.name,
             isNewPlayer: false,
             isOffline: true,
           });
@@ -167,48 +160,41 @@ export class LoadingScene extends Scene {
     }
     
     // Check for offline-created user that needs to be synced
-    if (userId?.startsWith('offline-') && offlineName && offlineAvatar) {
+    if (session?.userId.startsWith('offline-') && offline) {
       console.log('[Loading] Offline user found - attempting to sync...');
       try {
         // Try to create a real account now that we might be online
-        const sessionToken = this.generateSessionToken();
-        const response = await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            display_name: offlineName,
-            avatar_sprite: offlineAvatar,
-            session_token: sessionToken,
-          }),
+        const newSessionToken = StorageService.generateSessionToken();
+        const user = await ApiService.createUser({
+          display_name: offline.name,
+          avatar_sprite: offline.avatar,
+          session_token: newSessionToken,
         });
         
-        if (response.ok) {
-          const user = await response.json();
-          console.log('[Loading] Offline user synced to database:', user.id);
-          
-          // Update credentials with real user
-          localStorage.setItem('arkagentic_user_id', user.id);
-          localStorage.setItem('arkagentic_session_token', sessionToken);
-          localStorage.removeItem('arkagentic_offline_name');
-          localStorage.removeItem('arkagentic_offline_avatar');
-          
-          this.scene.start('town-scene', {
-            playerAvatar: user.avatar_sprite,
-            playerName: user.display_name,
-            userId: user.id,
-            sessionToken: sessionToken,
-            isNewPlayer: false,
-          });
-          return;
-        }
+        console.log('[Loading] Offline user synced to database:', user.id);
+        
+        // Update credentials with real user
+        StorageService.setSessionCredentials(user.id, newSessionToken);
+        StorageService.remove(STORAGE_KEYS.OFFLINE_NAME);
+        StorageService.remove(STORAGE_KEYS.OFFLINE_AVATAR);
+        
+        this.scene.start('town-scene', {
+          playerAvatar: user.avatar_sprite,
+          playerName: user.display_name,
+          userId: user.id,
+          sessionToken: newSessionToken,
+          isNewPlayer: false,
+        });
+        return;
+        
       } catch (error) {
         console.log('[Loading] Still offline - continuing in offline mode');
       }
       
       // Still offline - continue with offline credentials
       this.scene.start('town-scene', {
-        playerAvatar: offlineAvatar,
-        playerName: offlineName,
+        playerAvatar: offline.avatar,
+        playerName: offline.name,
         isNewPlayer: false,
         isOffline: true,
       });
@@ -218,26 +204,5 @@ export class LoadingScene extends Scene {
     // No valid credentials - show character selection
     console.log('[Loading] New player - showing character select');
     this.scene.start('character-select-scene');
-  }
-  
-  /**
-   * Clear all stored credentials
-   */
-  private clearCredentials(): void {
-    localStorage.removeItem('arkagentic_user_id');
-    localStorage.removeItem('arkagentic_session_token');
-    localStorage.removeItem('arkagentic_offline_name');
-    localStorage.removeItem('arkagentic_offline_avatar');
-    // Also remove legacy cached user data
-    localStorage.removeItem('arkagentic_user');
-  }
-  
-  /**
-   * Generate a secure random session token
-   */
-  private generateSessionToken(): string {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
   }
 }
