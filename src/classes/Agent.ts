@@ -29,6 +29,11 @@ export class Agent extends Actor {
   private isSpeaking: boolean = false;
   private thoughtBubble: Label | undefined;
   
+  // Typing indicator (animated "..." above head)
+  private typingIndicator: Phaser.GameObjects.Text | undefined;
+  private typingTimer: Phaser.Time.TimerEvent | null = null;
+  private typingDots: number = 1;
+  
   // Grid-based movement
   private tileX: number = 0;
   private tileY: number = 0;
@@ -168,6 +173,7 @@ export class Agent extends Actor {
     // Update text box position
     this.updateTextBox();
     this.updateThoughtBubble();
+    this.updateTypingIndicator();
 
     // Set depth for proper layering
     this.depth = this.y + 50;
@@ -612,6 +618,75 @@ export class Agent extends Actor {
     }
   }
 
+  // ========== Typing Indicator (animated "...") ==========
+  
+  /**
+   * Show animated typing indicator above agent's head
+   * Classic RPG style "..." that animates while AI is thinking
+   */
+  public showTypingIndicator(): void {
+    // Clean up existing indicator if any
+    this.hideTypingIndicator();
+    
+    const agentColor = AGENT_COLORS[this.agentType];
+    
+    // Create the typing indicator text
+    this.typingIndicator = this.scene.add.text(
+      this.x,
+      this.y - 24,
+      '.',
+      {
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        backgroundColor: '#' + agentColor.toString(16).padStart(6, '0'),
+        padding: { x: 8, y: 4 },
+      }
+    ).setOrigin(0.5, 1);
+    
+    this.typingDots = 1;
+    
+    // Animate the dots: . → .. → ... → . (loop)
+    this.typingTimer = this.scene.time.addEvent({
+      delay: 400,
+      callback: () => {
+        if (!this.typingIndicator) return;
+        
+        this.typingDots = (this.typingDots % 3) + 1;
+        this.typingIndicator.setText('.'.repeat(this.typingDots));
+      },
+      loop: true,
+    });
+  }
+  
+  /**
+   * Hide the typing indicator
+   */
+  public hideTypingIndicator(): void {
+    if (this.typingTimer) {
+      this.typingTimer.destroy();
+      this.typingTimer = null;
+    }
+    
+    if (this.typingIndicator) {
+      this.typingIndicator.destroy();
+      this.typingIndicator = undefined;
+    }
+  }
+  
+  /**
+   * Check if typing indicator is showing
+   */
+  public isTyping(): boolean {
+    return this.typingIndicator !== undefined;
+  }
+  
+  private updateTypingIndicator(): void {
+    if (!this.typingIndicator) return;
+    this.typingIndicator.setPosition(this.x, this.y - 24);
+    this.typingIndicator.setDepth(this.y + 200);
+  }
+
   public getIsSpeaking(): boolean {
     return this.isSpeaking;
   }
@@ -630,6 +705,7 @@ export class Agent extends Actor {
     
     this.destroyTextBox();
     this.destroyThoughtBubble();
+    this.hideTypingIndicator();
     if (this.nameTag) {
       this.nameTag.destroy();
     }

@@ -1410,8 +1410,14 @@ export class TownScene extends Scene {
     const iconSpan = mainAgentConfig ? getIconSpan(mainAgentConfig.emoji, 12) : '';
     this.updateChatStatus(`${iconSpan} ${mainAgentConfig?.name || 'Agent'} is thinking...`);
 
-    // Phase 1: Agents think about the query (show thought bubbles)
-    relevantAgents.forEach((agentType) => {
+    // Phase 1: Main agent shows typing indicator (animated "...")
+    const mainAgent = this.agents.get(mainAgentType);
+    if (mainAgent) {
+      mainAgent.showTypingIndicator();
+    }
+    
+    // Other agents show thought bubbles
+    relevantAgents.slice(1).forEach((agentType) => {
       const agent = this.agents.get(agentType);
       if (agent) {
         eventsCenter.emit(`${agentType}-think`, 'Thinking...');
@@ -1452,11 +1458,11 @@ export class TownScene extends Scene {
         });
       }
       
-      // Phase 6: Show the response in game bubble (chat message already added by streaming)
+      // Phase 6: Hide typing indicator (response shown in sidebar chat, not game bubble)
       const respondingAgent = this.agents.get(result.agent);
-      if (respondingAgent && result.response) {
-        // Show truncated version in game bubble
-        respondingAgent.speak(this.truncateText(result.response, 80));
+      if (respondingAgent) {
+        // Hide the typing indicator now that response is complete
+        respondingAgent.hideTypingIndicator();
         
         // Note: Chat message is already added by streaming in callAgentAPI
         // Only add if fallback was used (no streaming message exists)
@@ -1476,13 +1482,14 @@ export class TownScene extends Scene {
       console.error('API Error:', error);
       this.removeTypingIndicator();
       
-      const errorMessage = 'Sorry, I encountered an error processing your request.';
-      this.addChatMessage('agent', errorMessage, mainAgentType);
-      
+      // Hide typing indicator on error
       const mainAgent = this.agents.get(mainAgentType);
       if (mainAgent) {
-        mainAgent.speak('Oops, something went wrong!');
+        mainAgent.hideTypingIndicator();
       }
+      
+      const errorMessage = 'Sorry, I encountered an error processing your request.';
+      this.addChatMessage('agent', errorMessage, mainAgentType);
     }
 
     // Phase 6: Return agents to original positions after delay

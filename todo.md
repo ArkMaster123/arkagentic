@@ -577,3 +577,32 @@ When tilemaps render on desktop but not mobile, and sprites work fine on both, i
 - Added null checks for content elements
 
 *Last updated: 2026-01-05 (Room Chat Tab Fix)*
+
+### 2026-01-05 (Room Chat Message Display Fix)
+- **Bug:** Room chat messages weren't displaying in the chat area
+- **Cause:** Race condition - GameBridge's `installOnWindow()` was overwriting `window.addRoomChatMessage` that was already set by `index.html`
+- **Fix:** Updated `GameBridge.installOnWindow()` to:
+  1. Only set functions if they don't already exist on window
+  2. Register existing HTML functions as callbacks so both paths work
+- Also fixed null pointer error for zoom/sound controls on mobile (elements don't exist)
+
+*Last updated: 2026-01-05 (Room Chat Fix)*
+
+---
+
+## Upcoming Features
+
+### Agent Chat Typing Indicator (TODO)
+- **Current behavior:** When chatting with an agent, their full message appears in a chat bubble above their head - too cluttered
+- **Desired behavior:** Classic RPG-style "..." typing indicator above the agent's head while AI is processing
+- **Implementation plan:**
+  1. Remove/disable the full message chat bubble when chatting to agents
+  2. Add animated "..." indicator sprite/text above agent when they're being chatted to
+  3. Animation: dots should pulse or appear one by one (... → . → .. → ... loop)
+  4. Show indicator when: agent receives a message and is "thinking"
+  5. Hide indicator when: agent's response is complete (shown in sidebar chat)
+  6. Keep room chat bubbles for multiplayer (players chatting to each other)
+- **Files to modify:**
+  - `src/classes/Agent.ts` - Add typing indicator sprite/animation
+  - `src/game/systems/ChatSystem.ts` - Trigger indicator on/off
+  - `src/classes/MultiplayerManager.ts` - Keep chat bubbles for player-to-player chat only
