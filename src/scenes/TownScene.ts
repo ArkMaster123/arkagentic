@@ -719,6 +719,21 @@ export class TownScene extends Scene {
 
     // Set default cursor
     this.input.manager.canvas.style.cursor = 'default';
+    
+    // On mobile, the camera worldView may be 0x0 initially
+    // Force a refresh after a short delay to fix this
+    this.time.delayedCall(100, () => {
+      // Force camera to recalculate its viewport
+      this.cameras.main.setViewport(0, 0, this.game.scale.width, this.game.scale.height);
+      this.cameras.main.preRender();
+      
+      this.serverLog('info', 'Camera after delayed fix', {
+        worldViewWidth: this.cameras.main.worldView.width,
+        worldViewHeight: this.cameras.main.worldView.height,
+        viewportWidth: this.cameras.main.width,
+        viewportHeight: this.cameras.main.height,
+      });
+    });
   }
   
   private async initMultiplayer(): Promise<void> {
