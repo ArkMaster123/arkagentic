@@ -155,11 +155,19 @@ Use this checklist when refactoring each file:
 - [ ] **room-maven.json** - Welcome center with couch, help desk, plants
 
 ### Mobile Phone Browser Optimization
-- [ ] **Virtual joystick** - Replace WASD with on-screen joystick (bottom-left)
-- [ ] **Touch action buttons** - A/B style buttons for interact/cancel (bottom-right)
-- [ ] **Responsive viewport** - Scale game canvas to fit mobile screens
+- [x] **Mobile detection** - Auto-enable touch controls on mobile devices (`isMobileDevice()` in MobileControls.ts)
+- [x] **MobileControlsManager class** - Created `src/classes/MobileControls.ts` with joystick + A/B buttons
+- [x] **Integrated into all scenes** - TownScene, MeetingRoomScene, RoomScene all init mobile controls
+- [x] **Player joystick input** - Player.ts accepts joystick direction from MobileControlsManager
+- [x] **Mobile chat overlay** - Added toggle button + chat overlay in index.html
+- [x] **Mobile chat JavaScript** - `toggleMobileChat()`, `switchMobileTab()` functions
+- [x] **Responsive CSS** - Media queries for mobile in index.html (hides sidebars, fullscreen game)
+- [x] **Game scaling** - Scale.FIT mode on mobile, Scale.NONE on desktop in index.ts
+- [x] **Base href fix** - Added `<base href="/">` to fix asset paths on SPA routes
+- [ ] **FIXING: Virtual joystick not appearing** - Need to register rexVirtualJoystick plugin globally
+- [ ] **FIXING: Zoom buttons not working** - Need to investigate pinch zoom + button handlers
+- [ ] **FIXING: Black screen / crash on room entry** - Asset path issues with nested routes
 - [ ] **Touch-friendly UI** - Larger buttons, tap-to-chat, pinch-to-zoom minimap
-- [ ] **Mobile detection** - Auto-enable touch controls on mobile devices
 - [ ] **Portrait mode support** - Reflow UI for vertical orientation
 - [ ] **Performance tuning** - Reduce particle effects, lower resolution on mobile
 
@@ -458,3 +466,41 @@ Resume wandering
   - Build passes successfully
 
 *Last updated: 2026-01-05 (Multiplayer Across Rooms Complete)*
+
+### 2026-01-05 (Mobile Optimization Work)
+- **Mobile Controls Implementation (Partial):**
+  - Created `src/classes/MobileControls.ts`:
+    - `isMobileDevice()` - Detects touch + mobile UA + small screen
+    - `MobileControlsManager` class - Manages joystick + A/B buttons
+    - Auto-enables on mobile, can be manually toggled
+  - Updated `src/classes/Player.ts`:
+    - Added `mobileControls` property and `setMobileControls()` method
+    - Movement logic now checks joystick direction alongside WASD/arrows
+  - Updated `src/scenes/TownScene.ts`:
+    - Added `initMobileControls()` method
+    - A button = enter buildings/meeting rooms, start agent chats
+    - B button = close all prompts
+    - Added `closeAllPrompts()` helper method
+    - Cleanup in `cleanupBeforeSceneChange()`
+  - Updated `src/scenes/MeetingRoomScene.ts`:
+    - Added mobile controls with A = join/leave Jitsi, B = exit room
+  - Updated `src/scenes/RoomScene.ts`:
+    - Added mobile controls with B = exit room
+  - Updated `index.html`:
+    - Added `<base href="/">` to fix asset paths on nested routes
+    - Added mobile chat JavaScript functions (`toggleMobileChat`, `switchMobileTab`)
+    - Added send button event handlers for mobile chat
+    - Auto-shows mobile chat toggle on mobile devices
+  - Updated `src/index.ts`:
+    - Added `isMobileDevice()` for scaling decision
+    - Changed scale mode: `Scale.FIT` on mobile, `Scale.NONE` on desktop
+    - Added `autoCenter: Scale.CENTER_BOTH` on mobile
+    - Added `VirtualJoystickPlugin` and `GesturesPlugin` to global plugins
+  
+- **Current Issues Being Fixed:**
+  1. Joystick not visible - Plugin registration issue
+  2. Zoom buttons not working - Need to check implementation
+  3. Black screen on room entry - Asset path resolution
+  4. Stretched display on mobile - Scale mode adjustment needed
+
+*Last updated: 2026-01-05 (Mobile Optimization In Progress)*

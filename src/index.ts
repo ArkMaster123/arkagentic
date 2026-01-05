@@ -6,6 +6,8 @@ import { RoomScene } from './scenes/RoomScene';
 import { MeetingRoomScene } from './scenes/MeetingRoomScene';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
+import VirtualJoystickPlugin from 'phaser3-rex-plugins/plugins/virtualjoystick-plugin.js';
+import GesturesPlugin from 'phaser3-rex-plugins/plugins/gestures-plugin.js';
 import { GameBridge } from './core';
 
 declare global {
@@ -189,6 +191,18 @@ export const gameConfig: Types.Core.GameConfig = {
     createContainer: true,
   },
   plugins: {
+    global: [
+      {
+        key: 'rexVirtualJoystick',
+        plugin: VirtualJoystickPlugin,
+        start: true,
+      },
+      {
+        key: 'rexGestures',
+        plugin: GesturesPlugin,
+        start: true,
+      },
+    ],
     scene: [
       {
         key: 'rexUI',
