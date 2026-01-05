@@ -1680,12 +1680,13 @@
         padding: 0;
         width: 100%;
         flex: none;
-        /* Game takes ~55% of screen height (square game) */
+        /* Game takes ~55% of screen height */
         height: 55vh;
         display: flex;
         align-items: center;
         justify-content: center;
         background: #0a0a10;
+        overflow: hidden;
       }
       
       #game-controls {
@@ -1695,20 +1696,21 @@
       }
       
       #game {
+        /* Let Phaser's scale manager handle sizing */
+        /* Game is 800x600 internally, scaled to fit */
         width: auto !important;
         height: 100% !important;
-        aspect-ratio: 1 / 1;
-        min-width: unset !important;
-        min-height: unset !important;
         max-width: 100% !important;
         max-height: 100% !important;
+        min-width: unset !important;
+        min-height: unset !important;
         border-radius: 0;
         border-width: 2px;
       }
       
+      /* Don't override canvas size - let Phaser handle it */
       #game canvas {
-        width: 100% !important;
-        height: 100% !important;
+        /* Phaser's scale manager handles this */
       }
       
       /* Mobile controls area - bottom 45% of screen */

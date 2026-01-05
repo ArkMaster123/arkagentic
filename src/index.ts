@@ -125,36 +125,24 @@ function isMobileDevice(): boolean {
   return hasTouch && (isMobileUA || isSmallScreen);
 }
 
-// Get mobile game dimensions (square game in top half of screen)
-function getMobileGameSize(): { width: number; height: number } {
-  const screenWidth = window.innerWidth;
-  const screenHeight = window.innerHeight;
-  
-  // On mobile, game takes top portion, leaving bottom for controls
-  // Make the game square based on screen width
-  const gameSize = Math.min(screenWidth, screenHeight * 0.55); // 55% of height max
-  
-  return {
-    width: Math.floor(gameSize),
-    height: Math.floor(gameSize),
-  };
-}
-
 // Determine the game canvas size
 const isMobile = isMobileDevice();
-const mobileSize = getMobileGameSize();
 
+// IMPORTANT: Keep internal game resolution fixed at 800x600 for consistent rendering
+// Phaser's scale manager will handle fitting to the screen
+// Using dynamic resolution was causing tilemap rendering issues on mobile
 export const gameConfig: Types.Core.GameConfig = {
   title: 'AgentVerse - Multi-Agent Collaboration',
   type: WEBGL,
   parent: 'game',
   backgroundColor: '#1a1a2e',
   scale: {
-    // On mobile, use FIT with square aspect ratio
-    // On desktop, use NONE for fixed 800x600 canvas
+    // Always use 800x600 internal resolution
+    // On mobile, use FIT to scale down while maintaining aspect ratio
+    // On desktop, use NONE for pixel-perfect rendering
     mode: isMobile ? Scale.ScaleModes.FIT : Scale.ScaleModes.NONE,
-    width: isMobile ? mobileSize.width : 800,
-    height: isMobile ? mobileSize.height : 600,
+    width: 800,
+    height: 600,
     autoCenter: isMobile ? Scale.CENTER_HORIZONTALLY : Scale.NO_CENTER,
   },
   physics: {
@@ -227,9 +215,7 @@ window.sizeChanged = () => {
   // On mobile, Phaser's FIT mode handles resizing automatically
   // On desktop, game stays at fixed 800x600 - no resize needed
   if (isMobileDevice() && window.game) {
-    // Recalculate mobile game size on resize/orientation change
-    const newSize = getMobileGameSize();
-    window.game.scale.resize(newSize.width, newSize.height);
+    // Just refresh the scale manager - it handles fitting automatically
     window.game.scale.refresh();
   }
 };
