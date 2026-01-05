@@ -133,9 +133,9 @@ const isMobile = isMobileDevice();
 // Using dynamic resolution was causing tilemap rendering issues on mobile
 export const gameConfig: Types.Core.GameConfig = {
   title: 'AgentVerse - Multi-Agent Collaboration',
-  // Use AUTO to let Phaser choose - it will try WebGL first, fall back to Canvas
-  // On mobile, WebGL can have issues with tilemap textures
-  type: AUTO,
+  // Force CANVAS on mobile - WebGL has tilemap rendering issues on some mobile devices
+  // Use WEBGL on desktop for better performance
+  type: isMobile ? CANVAS : WEBGL,
   parent: 'game',
   backgroundColor: '#1a1a2e',
   scale: {
