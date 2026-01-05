@@ -551,28 +551,9 @@ class AgentOrchestrator:
             logger.info(f"Processing with {agent_type}: {query[:50]}...")
             result = agent(query)
 
-            # Extract response text
-            message = getattr(result, "message", None)
-            if message is not None:
-                # Handle structured response - message could be dict-like or object
-                content: Any = (
-                    message.get("content")
-                    if isinstance(message, dict)
-                    else getattr(message, "content", None)
-                )
-                if content is not None:
-                    if isinstance(content, list):
-                        response_text = " ".join(
-                            block.get("text", "")
-                            for block in content
-                            if isinstance(block, dict) and block.get("type") == "text"
-                        )
-                    else:
-                        response_text = str(content)
-                else:
-                    response_text = str(result)
-            else:
-                response_text = str(result)
+            # Extract response text - simplest approach: str(result) works!
+            # The AgentResult.__str__ method returns the text content directly
+            response_text = str(result).strip()
 
             logger.info(f"Agent {agent_type} responded: {len(response_text)} chars")
 
