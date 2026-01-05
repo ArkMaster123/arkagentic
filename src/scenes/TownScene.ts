@@ -355,11 +355,25 @@ export class TownScene extends Scene {
       tileHeight: 16,
     });
     
+    console.log('[TownScene] Map created:', this.map.width, 'x', this.map.height, 'tiles');
+    
     this.tileset = this.map.addTilesetImage('town', 'tiles')!;
+    
+    if (!this.tileset) {
+      console.error('[TownScene] TILESET FAILED TO LOAD! Check if tiles texture exists:', this.textures.exists('tiles'));
+    } else {
+      console.log('[TownScene] Tileset loaded:', this.tileset.name);
+    }
     
     // Create layers
     this.groundLayer = this.map.createLayer('ground', this.tileset, 0, 0)!;
     this.wallLayer = this.map.createLayer('wall', this.tileset, 0, 0)!;
+    
+    if (!this.groundLayer) {
+      console.error('[TownScene] GROUND LAYER FAILED! Available layers:', this.map.layers.map(l => l.name));
+    } else {
+      console.log('[TownScene] Ground layer created, visible:', this.groundLayer.visible, 'alpha:', this.groundLayer.alpha);
+    }
     
     // Try to create optional layers (may not exist in all tilemaps)
     try {
