@@ -731,6 +731,10 @@ export class TownScene extends Scene {
       const testRect = this.add.rectangle(400, 300, 200, 200, 0xff0000);
       testRect.setDepth(1000);
       
+      // Check canvas element directly
+      const canvas = this.game.canvas;
+      const canvasStyle = canvas ? window.getComputedStyle(canvas) : null;
+      
       this.serverLog('info', 'Camera after delayed fix', {
         worldViewWidth: this.cameras.main.worldView.width,
         worldViewHeight: this.cameras.main.worldView.height,
@@ -739,6 +743,14 @@ export class TownScene extends Scene {
         testRectAdded: true,
         groundLayerVisible: this.groundLayer?.visible,
         groundLayerAlpha: this.groundLayer?.alpha,
+        canvasWidth: canvas?.width,
+        canvasHeight: canvas?.height,
+        canvasStyleWidth: canvasStyle?.width,
+        canvasStyleHeight: canvasStyle?.height,
+        canvasDisplay: canvasStyle?.display,
+        canvasVisibility: canvasStyle?.visibility,
+        canvasOpacity: canvasStyle?.opacity,
+        rendererType: this.game.renderer.type,
       });
       
       // Remove test rect after 2 seconds

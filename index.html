@@ -1696,9 +1696,8 @@
       }
       
       #game {
-        /* Let Phaser's scale manager handle sizing */
-        /* Game is 800x600 internally, scaled to fit */
-        width: auto !important;
+        /* Force game container to be visible */
+        width: 100% !important;
         height: 100% !important;
         max-width: 100% !important;
         max-height: 100% !important;
@@ -1706,11 +1705,18 @@
         min-height: unset !important;
         border-radius: 0;
         border-width: 2px;
+        position: relative !important;
+        overflow: visible !important;
       }
       
-      /* Don't override canvas size - let Phaser handle it */
+      /* Force canvas to be visible and properly sized */
       #game canvas {
-        /* Phaser's scale manager handles this */
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        object-fit: contain !important;
       }
       
       /* Mobile controls area - bottom 45% of screen */
