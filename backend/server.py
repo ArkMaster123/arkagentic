@@ -284,12 +284,8 @@ async def client_log(request: ClientLogRequest):
     if request.user_agent:
         log_msg += f" | UA: {request.user_agent[:100]}"
 
-    if request.level == "error":
-        logger.error(log_msg)
-    elif request.level == "warn":
-        logger.warning(log_msg)
-    else:
-        logger.info(log_msg)
+    # Print directly to stdout to ensure it shows in journalctl
+    print(log_msg, flush=True)
 
     return {"status": "logged"}
 
