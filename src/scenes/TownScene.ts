@@ -402,9 +402,17 @@ export class TownScene extends Scene {
       this.serverLog('info', 'Tileset loaded', { name: this.tileset.name });
     }
     
-    // Create layers
+    // Create layers with explicit depth to ensure proper rendering order
     this.groundLayer = this.map.createLayer('ground', this.tileset, 0, 0)!;
     this.wallLayer = this.map.createLayer('wall', this.tileset, 0, 0)!;
+    
+    // Set explicit depths - ground at bottom, then walls
+    if (this.groundLayer) {
+      this.groundLayer.setDepth(0);
+    }
+    if (this.wallLayer) {
+      this.wallLayer.setDepth(1);
+    }
     
     if (!this.groundLayer) {
       this.serverLog('error', 'GROUND LAYER FAILED', { 
@@ -419,6 +427,10 @@ export class TownScene extends Scene {
         y: this.groundLayer.y,
         width: this.groundLayer.width,
         height: this.groundLayer.height,
+        displayWidth: this.groundLayer.displayWidth,
+        displayHeight: this.groundLayer.displayHeight,
+        scaleX: this.groundLayer.scaleX,
+        scaleY: this.groundLayer.scaleY,
       });
     }
     
@@ -662,7 +674,14 @@ export class TownScene extends Scene {
     const mapWidth = this.map.widthInPixels;
     const mapHeight = this.map.heightInPixels;
 
-    console.log('Map dimensions:', mapWidth, 'x', mapHeight);
+    this.serverLog('info', 'initCamera', {
+      mapWidth,
+      mapHeight,
+      scaleWidth: this.game.scale.width,
+      scaleHeight: this.game.scale.height,
+      cameraWidth: this.cameras.main.width,
+      cameraHeight: this.cameras.main.height,
+    });
 
     this.cameras.main.setSize(this.game.scale.width, this.game.scale.height);
     this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
@@ -670,10 +689,25 @@ export class TownScene extends Scene {
     // Follow the player instead of centering on meeting point
     if (this.player) {
       this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+      this.serverLog('info', 'Camera following player', {
+        playerX: this.player.x,
+        playerY: this.player.y,
+      });
     } else {
       this.cameras.main.centerOn(MEETING_POINT.x, MEETING_POINT.y);
+      this.serverLog('info', 'Camera centered on meeting point', MEETING_POINT);
     }
     this.cameras.main.setZoom(2);
+    
+    this.serverLog('info', 'Camera final state', {
+      zoom: this.cameras.main.zoom,
+      scrollX: this.cameras.main.scrollX,
+      scrollY: this.cameras.main.scrollY,
+      worldViewX: this.cameras.main.worldView.x,
+      worldViewY: this.cameras.main.worldView.y,
+      worldViewWidth: this.cameras.main.worldView.width,
+      worldViewHeight: this.cameras.main.worldView.height,
+    });
 
     // Set default cursor
     this.input.manager.canvas.style.cursor = 'default';
