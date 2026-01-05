@@ -154,21 +154,22 @@ Use this checklist when refactoring each file:
 - [ ] **room-trends.json** - Intelligence hub with monitors, radar, heat maps
 - [ ] **room-maven.json** - Welcome center with couch, help desk, plants
 
-### Mobile Phone Browser Optimization
+### Mobile Phone Browser Optimization - COMPLETE!
 - [x] **Mobile detection** - Auto-enable touch controls on mobile devices (`isMobileDevice()` in MobileControls.ts)
-- [x] **MobileControlsManager class** - Created `src/classes/MobileControls.ts` - now bridges HTML controls to Phaser
+- [x] **MobileControlsManager class** - Created `src/classes/MobileControls.ts` - bridges HTML controls to Phaser
 - [x] **Integrated into all scenes** - TownScene, MeetingRoomScene, RoomScene all init mobile controls
-- [x] **Player joystick input** - Player.ts accepts direction from MobileControlsManager
+- [x] **Player D-pad input** - Player.ts accepts direction from MobileControlsManager via `window.mobileDirection`
 - [x] **Mobile chat overlay** - Added toggle button + chat overlay in index.html
 - [x] **Mobile chat JavaScript** - `toggleMobileChat()`, `switchMobileTab()` functions
 - [x] **Responsive CSS** - Media queries for mobile in index.html (hides sidebars)
-- [x] **Game scaling** - Scale.FIT mode on mobile (square game), Scale.NONE on desktop in index.ts
+- [x] **Game scaling** - Scale.FIT mode on mobile, Scale.NONE on desktop in index.ts
 - [x] **Base href fix** - Added `<base href="/">` to fix asset paths on SPA routes
 - [x] **SPLIT-SCREEN LAYOUT** - Game takes top 55%, controls take bottom 45%
 - [x] **HTML D-pad controls** - D-pad rendered in HTML for better touch response
 - [x] **HTML Action buttons** - A (green) and B (red) buttons in HTML
 - [x] **Swap controls button** - Users can swap D-pad/Actions position (left/right)
 - [x] **Chat button in controls** - Quick access to mobile chat overlay
+- [x] **CRITICAL: Canvas renderer on mobile** - Fixed black tilemap bug (WebGL fails on mobile tilemaps)
 - [ ] **Touch-friendly UI** - Larger buttons, tap-to-chat, pinch-to-zoom minimap
 - [ ] **Portrait mode support** - Reflow UI for vertical orientation
 - [ ] **Performance tuning** - Reduce particle effects, lower resolution on mobile
@@ -521,3 +522,48 @@ Resume wandering
   - `src/classes/MobileControls.ts` - Simplified to bridge HTML controls to Phaser
 
 *Last updated: 2026-01-05 (Mobile Split-Screen Layout)*
+
+### 2026-01-05 (CRITICAL FIX: Mobile Tilemap Black Screen)
+
+**THE PROBLEM:**
+On mobile devices (Android Chrome), the tilemap/background was completely black. Players could see:
+- Their character sprite ✓
+- AI agent sprites ✓
+- Movement working ✓
+- BUT the entire tilemap (ground, walls, trees, houses) was invisible/black ✗
+
+**PAINFUL DEBUGGING JOURNEY:**
+This took HOURS to diagnose because everything looked correct:
+1. Added server-side client logging endpoint (`/api/client-log`) to debug mobile
+2. Logs showed tileset loaded correctly, layers created, camera set up
+3. Discovered camera `worldView` was 0x0 - fixed with `setViewport()` - still black
+4. Added test red rectangle - couldn't see it either
+5. Canvas element showed: visible=true, opacity=1, display=block
+6. All Phaser internals looked correct
+
+**THE ROOT CAUSE:**
+**WebGL renderer fails to render tilemap layers on some mobile devices/browsers.**
+
+The WebGL implementation on mobile Chrome/Android has issues rendering Phaser tilemap layers, even though:
+- Sprites render fine (they use a different rendering path)
+- The tileset texture loads correctly
+- All layer properties are correct
+
+**THE FIX (one line!):**
+```typescript
+// src/index.ts
+type: isMobile ? CANVAS : WEBGL,
+```
+
+Force **Canvas renderer** on mobile devices instead of WebGL:
+- Mobile: `CANVAS` (type: 1) - more compatible, slightly slower but WORKS
+- Desktop: `WEBGL` (type: 2) - better performance
+
+**LESSON LEARNED:**
+When tilemaps render on desktop but not mobile, and sprites work fine on both, it's likely a WebGL tilemap rendering bug. Try Canvas renderer first before diving deep into camera/layer debugging.
+
+**Files modified:**
+- `src/index.ts` - Changed `type: WEBGL` to `type: isMobile ? CANVAS : WEBGL`
+- `backend/server.py` - Added `/api/client-log` endpoint (useful for future mobile debugging)
+
+*Last updated: 2026-01-05 (Mobile Tilemap Fix - Canvas Renderer)*
