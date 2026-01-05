@@ -1,4 +1,4 @@
-import { Scene, GameObjects } from 'phaser';
+import { Scene } from 'phaser';
 
 /**
  * Mobile detection utilities
@@ -48,49 +48,34 @@ interface DirectionState {
   down: boolean;
 }
 
+// Extend window to include mobile direction state
+declare global {
+  interface Window {
+    mobileDirection?: DirectionState;
+    mobileActionA?: () => void;
+    mobileActionB?: () => void;
+  }
+}
+
 /**
- * MobileControlsManager - Provides touch controls for mobile devices
+ * MobileControlsManager - Bridges HTML mobile controls with Phaser game
  * 
- * Features:
- * - D-pad directional buttons (bottom-left) for movement - more reliable than joystick
- * - A/B action buttons (bottom-right) for interactions
- * - Semi-transparent, touch-friendly design
+ * The actual D-pad and action buttons are rendered in HTML (index.html)
+ * for better touch responsiveness. This class:
+ * - Reads direction state from window.mobileDirection
+ * - Sets up action button callbacks via window.mobileActionA/B
  * - Auto-enables on mobile devices
  */
 export class MobileControlsManager {
   private scene: Scene;
   private enabled: boolean = false;
-  
-  // D-pad container and buttons
-  private dpadContainer: GameObjects.Container | null = null;
-  private dpadButtons: Map<string, GameObjects.Container> = new Map();
-  
-  // Direction state (which buttons are pressed)
-  private directionState: DirectionState = {
-    left: false,
-    right: false,
-    up: false,
-    down: false,
-  };
-  
-  // Action buttons
-  private buttonA: GameObjects.Container | null = null;
-  private buttonB: GameObjects.Container | null = null;
   private callbacks: MobileControlsCallbacks = {};
-  
-  // Layout constants - larger for better touch targets
-  private readonly DPAD_SIZE = 140; // Total D-pad area size
-  private readonly DPAD_BUTTON_SIZE = 44; // Individual button size
-  private readonly DPAD_MARGIN = 20;
-  private readonly BUTTON_SIZE = 50;
-  private readonly BUTTON_MARGIN = 20;
-  private readonly BUTTON_SPACING = 65;
   
   constructor(scene: Scene, autoEnable: boolean = true) {
     this.scene = scene;
     
     if (autoEnable && isMobileDevice()) {
-      // Delay slightly to ensure scene is fully ready
+      // Delay slightly to ensure HTML is ready
       this.scene.time.delayedCall(100, () => {
         this.enable();
       });
@@ -104,13 +89,15 @@ export class MobileControlsManager {
     if (this.enabled) return;
     this.enabled = true;
     
-    this.createDpad();
-    this.createActionButtons();
+    // Initialize direction state if not exists
+    if (!window.mobileDirection) {
+      window.mobileDirection = { up: false, down: false, left: false, right: false };
+    }
     
-    // Listen for orientation changes
-    window.addEventListener('resize', this.handleResize);
+    // Set up action button callbacks
+    this.setupActionCallbacks();
     
-    console.log('[MobileControls] Enabled - D-pad and action buttons created');
+    console.log('[MobileControls] Enabled - reading from HTML controls');
   }
   
   /**
@@ -120,10 +107,9 @@ export class MobileControlsManager {
     if (!this.enabled) return;
     this.enabled = false;
     
-    this.destroyDpad();
-    this.destroyActionButtons();
-    
-    window.removeEventListener('resize', this.handleResize);
+    // Clear callbacks
+    window.mobileActionA = undefined;
+    window.mobileActionB = undefined;
     
     console.log('[MobileControls] Disabled');
   }
@@ -151,274 +137,37 @@ export class MobileControlsManager {
    */
   setCallbacks(callbacks: MobileControlsCallbacks): void {
     this.callbacks = { ...this.callbacks, ...callbacks };
+    this.setupActionCallbacks();
+  }
+  
+  /**
+   * Set up global action button callbacks
+   */
+  private setupActionCallbacks(): void {
+    // Set up A button callback
+    window.mobileActionA = () => {
+      if (this.enabled && this.callbacks.onActionA) {
+        this.callbacks.onActionA();
+      }
+    };
+    
+    // Set up B button callback
+    window.mobileActionB = () => {
+      if (this.enabled && this.callbacks.onActionB) {
+        this.callbacks.onActionB();
+      }
+    };
   }
   
   /**
    * Get direction state (compatible with keyboard input)
+   * Reads from window.mobileDirection set by HTML D-pad buttons
    */
   getDirection(): DirectionState {
-    if (!this.enabled) {
+    if (!this.enabled || !window.mobileDirection) {
       return { left: false, right: false, up: false, down: false };
     }
-    return { ...this.directionState };
-  }
-  
-  /**
-   * Create the D-pad control (4 directional buttons in a cross pattern)
-   */
-  private createDpad(): void {
-    const camera = this.scene.cameras.main;
-    const gameHeight = camera.height;
-    
-    // Position in bottom-left
-    const centerX = this.DPAD_MARGIN + this.DPAD_SIZE / 2;
-    const centerY = gameHeight - this.DPAD_MARGIN - this.DPAD_SIZE / 2;
-    
-    // Create container for D-pad
-    this.dpadContainer = this.scene.add.container(centerX, centerY);
-    this.dpadContainer.setScrollFactor(0);
-    this.dpadContainer.setDepth(10000);
-    
-    // Create background circle for D-pad area
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x000000, 0.3);
-    bg.fillCircle(0, 0, this.DPAD_SIZE / 2);
-    this.dpadContainer.add(bg);
-    
-    // Create directional buttons
-    const buttonOffset = 42; // Distance from center
-    
-    // Up button
-    this.createDpadButton('up', 0, -buttonOffset, '\u25B2'); // Triangle up
-    
-    // Down button  
-    this.createDpadButton('down', 0, buttonOffset, '\u25BC'); // Triangle down
-    
-    // Left button
-    this.createDpadButton('left', -buttonOffset, 0, '\u25C0'); // Triangle left
-    
-    // Right button
-    this.createDpadButton('right', buttonOffset, 0, '\u25B6'); // Triangle right
-    
-    // Center indicator (optional - shows D-pad center)
-    const centerDot = this.scene.add.graphics();
-    centerDot.fillStyle(0x4a90d9, 0.5);
-    centerDot.fillCircle(0, 0, 12);
-    this.dpadContainer.add(centerDot);
-    
-    console.log('[MobileControls] D-pad created at', centerX, centerY);
-  }
-  
-  /**
-   * Create a single D-pad directional button
-   */
-  private createDpadButton(direction: string, offsetX: number, offsetY: number, symbol: string): void {
-    if (!this.dpadContainer) return;
-    
-    const container = this.scene.add.container(offsetX, offsetY);
-    
-    // Button background - semi-transparent with blue tint
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(0x4a90d9, 0.7);
-    bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-    bg.lineStyle(2, 0xffffff, 0.8);
-    bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-    
-    // Direction symbol
-    const text = this.scene.add.text(0, 0, symbol, {
-      fontSize: '20px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-    
-    container.add([bg, text]);
-    
-    // Create invisible hit area for better touch detection
-    const hitArea = this.scene.add.circle(0, 0, this.DPAD_BUTTON_SIZE / 2 + 5, 0x000000, 0);
-    hitArea.setInteractive({ useHandCursor: false });
-    container.add(hitArea);
-    
-    // Touch handlers
-    hitArea.on('pointerdown', () => {
-      this.setDirection(direction, true);
-      bg.clear();
-      bg.fillStyle(0x6ab0f9, 1); // Brighter when pressed
-      bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-      bg.lineStyle(2, 0xffffff, 1);
-      bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-    });
-    
-    hitArea.on('pointerup', () => {
-      this.setDirection(direction, false);
-      bg.clear();
-      bg.fillStyle(0x4a90d9, 0.7);
-      bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-      bg.lineStyle(2, 0xffffff, 0.8);
-      bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-    });
-    
-    hitArea.on('pointerout', () => {
-      this.setDirection(direction, false);
-      bg.clear();
-      bg.fillStyle(0x4a90d9, 0.7);
-      bg.fillCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-      bg.lineStyle(2, 0xffffff, 0.8);
-      bg.strokeCircle(0, 0, this.DPAD_BUTTON_SIZE / 2);
-    });
-    
-    this.dpadContainer.add(container);
-    this.dpadButtons.set(direction, container);
-  }
-  
-  /**
-   * Set direction state
-   */
-  private setDirection(direction: string, pressed: boolean): void {
-    switch (direction) {
-      case 'up':
-        this.directionState.up = pressed;
-        break;
-      case 'down':
-        this.directionState.down = pressed;
-        break;
-      case 'left':
-        this.directionState.left = pressed;
-        break;
-      case 'right':
-        this.directionState.right = pressed;
-        break;
-    }
-  }
-  
-  /**
-   * Create action buttons (A and B)
-   */
-  private createActionButtons(): void {
-    const camera = this.scene.cameras.main;
-    const gameWidth = camera.width;
-    const gameHeight = camera.height;
-    
-    // Button A (primary - green) - bottom-right, lower position
-    const aX = gameWidth - this.BUTTON_MARGIN - this.BUTTON_SIZE / 2;
-    const aY = gameHeight - this.BUTTON_MARGIN - this.BUTTON_SIZE / 2;
-    this.buttonA = this.createButton(aX, aY, 'A', 0x4ade80, () => {
-      this.callbacks.onActionA?.();
-    });
-    
-    // Button B (secondary - red/orange) - to the left of A, slightly higher
-    const bX = aX - this.BUTTON_SPACING;
-    const bY = aY - this.BUTTON_SPACING / 3;
-    this.buttonB = this.createButton(bX, bY, 'B', 0xe94560, () => {
-      this.callbacks.onActionB?.();
-    });
-    
-    console.log('[MobileControls] Action buttons created - A at', aX, aY, '- B at', bX, bY);
-  }
-  
-  /**
-   * Create a single action button
-   */
-  private createButton(x: number, y: number, label: string, color: number, onPress: () => void): GameObjects.Container {
-    const container = this.scene.add.container(x, y);
-    container.setScrollFactor(0);
-    container.setDepth(10000);
-    
-    // Button background using Graphics
-    const bg = this.scene.add.graphics();
-    bg.lineStyle(3, 0xffffff, 1);
-    bg.fillStyle(color, 0.9);
-    bg.fillCircle(0, 0, this.BUTTON_SIZE / 2);
-    bg.strokeCircle(0, 0, this.BUTTON_SIZE / 2);
-    
-    // Button label
-    const text = this.scene.add.text(0, 0, label, {
-      fontSize: '22px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      fontFamily: 'Arial, sans-serif',
-    }).setOrigin(0.5);
-    
-    container.add([bg, text]);
-    
-    // Create an invisible hit area for interaction
-    const hitArea = this.scene.add.circle(0, 0, this.BUTTON_SIZE / 2 + 5, 0x000000, 0);
-    hitArea.setInteractive({ useHandCursor: false });
-    container.add(hitArea);
-    
-    // Touch/click handlers
-    hitArea.on('pointerdown', () => {
-      container.setScale(0.9);
-      // Brighten on press
-      bg.clear();
-      bg.lineStyle(3, 0xffffff, 1);
-      bg.fillStyle(color, 1);
-      bg.fillCircle(0, 0, this.BUTTON_SIZE / 2);
-      bg.strokeCircle(0, 0, this.BUTTON_SIZE / 2);
-      onPress();
-    });
-    
-    hitArea.on('pointerup', () => {
-      container.setScale(1);
-      bg.clear();
-      bg.lineStyle(3, 0xffffff, 1);
-      bg.fillStyle(color, 0.9);
-      bg.fillCircle(0, 0, this.BUTTON_SIZE / 2);
-      bg.strokeCircle(0, 0, this.BUTTON_SIZE / 2);
-    });
-    
-    hitArea.on('pointerout', () => {
-      container.setScale(1);
-      bg.clear();
-      bg.lineStyle(3, 0xffffff, 1);
-      bg.fillStyle(color, 0.9);
-      bg.fillCircle(0, 0, this.BUTTON_SIZE / 2);
-      bg.strokeCircle(0, 0, this.BUTTON_SIZE / 2);
-    });
-    
-    return container;
-  }
-  
-  /**
-   * Handle window resize / orientation change
-   */
-  private handleResize = (): void => {
-    if (!this.enabled) return;
-    
-    // Debounce the resize
-    this.scene.time.delayedCall(100, () => {
-      if (!this.enabled) return;
-      // Recreate controls with new positions
-      this.destroyDpad();
-      this.destroyActionButtons();
-      this.createDpad();
-      this.createActionButtons();
-    });
-  };
-  
-  /**
-   * Destroy D-pad
-   */
-  private destroyDpad(): void {
-    if (this.dpadContainer) {
-      this.dpadContainer.destroy();
-      this.dpadContainer = null;
-    }
-    this.dpadButtons.clear();
-    this.directionState = { left: false, right: false, up: false, down: false };
-  }
-  
-  /**
-   * Destroy action buttons
-   */
-  private destroyActionButtons(): void {
-    if (this.buttonA) {
-      this.buttonA.destroy();
-      this.buttonA = null;
-    }
-    if (this.buttonB) {
-      this.buttonB.destroy();
-      this.buttonB = null;
-    }
+    return { ...window.mobileDirection };
   }
   
   /**
@@ -430,10 +179,9 @@ export class MobileControlsManager {
   }
   
   /**
-   * Update - call this from scene update loop (optional)
+   * Update - not needed since HTML handles input
    */
   update(): void {
-    // Currently no per-frame updates needed
-    // Direction state is updated via touch events
+    // No-op: HTML handles all touch input
   }
 }

@@ -156,17 +156,19 @@ Use this checklist when refactoring each file:
 
 ### Mobile Phone Browser Optimization
 - [x] **Mobile detection** - Auto-enable touch controls on mobile devices (`isMobileDevice()` in MobileControls.ts)
-- [x] **MobileControlsManager class** - Created `src/classes/MobileControls.ts` with joystick + A/B buttons
+- [x] **MobileControlsManager class** - Created `src/classes/MobileControls.ts` - now bridges HTML controls to Phaser
 - [x] **Integrated into all scenes** - TownScene, MeetingRoomScene, RoomScene all init mobile controls
-- [x] **Player joystick input** - Player.ts accepts joystick direction from MobileControlsManager
+- [x] **Player joystick input** - Player.ts accepts direction from MobileControlsManager
 - [x] **Mobile chat overlay** - Added toggle button + chat overlay in index.html
 - [x] **Mobile chat JavaScript** - `toggleMobileChat()`, `switchMobileTab()` functions
-- [x] **Responsive CSS** - Media queries for mobile in index.html (hides sidebars, fullscreen game)
-- [x] **Game scaling** - Scale.FIT mode on mobile, Scale.NONE on desktop in index.ts
+- [x] **Responsive CSS** - Media queries for mobile in index.html (hides sidebars)
+- [x] **Game scaling** - Scale.FIT mode on mobile (square game), Scale.NONE on desktop in index.ts
 - [x] **Base href fix** - Added `<base href="/">` to fix asset paths on SPA routes
-- [ ] **FIXING: Virtual joystick not appearing** - Need to register rexVirtualJoystick plugin globally
-- [ ] **FIXING: Zoom buttons not working** - Need to investigate pinch zoom + button handlers
-- [ ] **FIXING: Black screen / crash on room entry** - Asset path issues with nested routes
+- [x] **SPLIT-SCREEN LAYOUT** - Game takes top 55%, controls take bottom 45%
+- [x] **HTML D-pad controls** - D-pad rendered in HTML for better touch response
+- [x] **HTML Action buttons** - A (green) and B (red) buttons in HTML
+- [x] **Swap controls button** - Users can swap D-pad/Actions position (left/right)
+- [x] **Chat button in controls** - Quick access to mobile chat overlay
 - [ ] **Touch-friendly UI** - Larger buttons, tap-to-chat, pinch-to-zoom minimap
 - [ ] **Portrait mode support** - Reflow UI for vertical orientation
 - [ ] **Performance tuning** - Reduce particle effects, lower resolution on mobile
@@ -497,10 +499,25 @@ Resume wandering
     - Added `autoCenter: Scale.CENTER_BOTH` on mobile
     - Added `VirtualJoystickPlugin` and `GesturesPlugin` to global plugins
   
-- **Current Issues Being Fixed:**
-  1. Joystick not visible - Plugin registration issue
-  2. Zoom buttons not working - Need to check implementation
-  3. Black screen on room entry - Asset path resolution
-  4. Stretched display on mobile - Scale mode adjustment needed
+### 2026-01-05 (Mobile Split-Screen Layout)
+- **Split-screen mobile layout implemented:**
+  - Game renders in top 55% of screen (square aspect ratio)
+  - Controls render in bottom 45% as HTML elements
+  - HTML D-pad (left) with up/down/left/right buttons
+  - HTML Action buttons (right) - A (green) for interact, B (red) for cancel
+  - Swap button to switch D-pad and action button positions
+  - Chat button for quick access to mobile chat overlay
+  - Preferences saved to localStorage (swap position)
+  
+- **Architecture change:**
+  - Moved from Phaser-rendered controls to HTML-rendered controls
+  - Better touch responsiveness and reliability
+  - MobileControlsManager now reads `window.mobileDirection` set by HTML
+  - Action buttons call `window.mobileActionA/B` callbacks
+  
+- **Files modified:**
+  - `index.html` - Added mobile controls area HTML + CSS + JavaScript
+  - `src/index.ts` - Updated mobile scaling to use square aspect ratio
+  - `src/classes/MobileControls.ts` - Simplified to bridge HTML controls to Phaser
 
-*Last updated: 2026-01-05 (Mobile Optimization In Progress)*
+*Last updated: 2026-01-05 (Mobile Split-Screen Layout)*

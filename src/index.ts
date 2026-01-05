@@ -121,9 +121,28 @@ function isMobileDevice(): boolean {
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
   const isMobileUA = mobileRegex.test(navigator.userAgent);
-  const isSmallScreen = window.innerWidth <= 768;
+  const isSmallScreen = window.innerWidth <= 1024;
   return hasTouch && (isMobileUA || isSmallScreen);
 }
+
+// Get mobile game dimensions (square game in top half of screen)
+function getMobileGameSize(): { width: number; height: number } {
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  
+  // On mobile, game takes top portion, leaving bottom for controls
+  // Make the game square based on screen width
+  const gameSize = Math.min(screenWidth, screenHeight * 0.55); // 55% of height max
+  
+  return {
+    width: Math.floor(gameSize),
+    height: Math.floor(gameSize),
+  };
+}
+
+// Determine the game canvas size
+const isMobile = isMobileDevice();
+const mobileSize = getMobileGameSize();
 
 export const gameConfig: Types.Core.GameConfig = {
   title: 'AgentVerse - Multi-Agent Collaboration',
@@ -131,12 +150,12 @@ export const gameConfig: Types.Core.GameConfig = {
   parent: 'game',
   backgroundColor: '#1a1a2e',
   scale: {
-    // On mobile, use FIT to scale game to fill screen while maintaining aspect ratio
+    // On mobile, use FIT with square aspect ratio
     // On desktop, use NONE for fixed 800x600 canvas
-    mode: isMobileDevice() ? Scale.ScaleModes.FIT : Scale.ScaleModes.NONE,
-    width: 800,
-    height: 600,
-    autoCenter: isMobileDevice() ? Scale.CENTER_BOTH : Scale.NO_CENTER,
+    mode: isMobile ? Scale.ScaleModes.FIT : Scale.ScaleModes.NONE,
+    width: isMobile ? mobileSize.width : 800,
+    height: isMobile ? mobileSize.height : 600,
+    autoCenter: isMobile ? Scale.CENTER_HORIZONTALLY : Scale.NO_CENTER,
   },
   physics: {
     default: 'arcade',
@@ -208,7 +227,9 @@ window.sizeChanged = () => {
   // On mobile, Phaser's FIT mode handles resizing automatically
   // On desktop, game stays at fixed 800x600 - no resize needed
   if (isMobileDevice() && window.game) {
-    // Trigger Phaser's scale manager to recalculate
+    // Recalculate mobile game size on resize/orientation change
+    const newSize = getMobileGameSize();
+    window.game.scale.resize(newSize.width, newSize.height);
     window.game.scale.refresh();
   }
 };

@@ -1658,10 +1658,11 @@
     }
 
     /* ==========================================
-       MOBILE RESPONSIVE STYLES
+       MOBILE RESPONSIVE STYLES - SPLIT SCREEN LAYOUT
+       Game on top (square), Controls on bottom
        ========================================== */
     
-    /* Mobile: Hide sidebars, fullscreen game */
+    /* Mobile: Hide sidebars, split-screen layout */
     @media screen and (max-width: 1024px) {
       #left-sidebar {
         display: none;
@@ -1671,65 +1672,246 @@
         display: none;
       }
       
+      #app-container {
+        flex-direction: column;
+      }
+      
       #game-area {
         padding: 0;
         width: 100%;
-        height: 100%;
+        flex: none;
+        /* Game takes ~55% of screen height (square game) */
+        height: 55vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0a0a10;
       }
       
       #game-controls {
-        top: 10px;
-        padding: 6px 12px;
+        top: 5px;
+        padding: 4px 10px;
+        transform: translateX(-50%) scale(0.85);
       }
       
       #game {
-        width: 100% !important;
+        width: auto !important;
         height: 100% !important;
+        aspect-ratio: 1 / 1;
         min-width: unset !important;
         min-height: unset !important;
         max-width: 100% !important;
         max-height: 100% !important;
         border-radius: 0;
-        border-width: 0;
+        border-width: 2px;
       }
       
       #game canvas {
         width: 100% !important;
         height: 100% !important;
       }
-    }
-    
-    /* Touch devices: Show mobile chat toggle button */
-    @media (pointer: coarse) {
-      /* Mobile chat toggle button */
-      #mobile-chat-toggle {
+      
+      /* Mobile controls area - bottom 45% of screen */
+      #mobile-controls-area {
         display: flex !important;
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 45vh;
+        background: linear-gradient(180deg, #12121a 0%, #0a0a10 100%);
+        border-top: 2px solid #e94560;
+        padding: 10px;
+        z-index: 100;
+      }
+      
+      /* D-pad container - left side */
+      #mobile-dpad {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+      
+      .dpad-container {
+        position: relative;
+        width: 160px;
+        height: 160px;
+      }
+      
+      .dpad-btn {
+        position: absolute;
         width: 56px;
         height: 56px;
-        background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
-        border: none;
+        background: linear-gradient(135deg, #4a90d9 0%, #3a70b9 100%);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        color: white;
+        font-size: 24px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        transition: transform 0.1s, background 0.1s;
+      }
+      
+      .dpad-btn:active {
+        transform: scale(0.95);
+        background: linear-gradient(135deg, #6ab0f9 0%, #4a90d9 100%);
+      }
+      
+      .dpad-btn.up { top: 0; left: 50%; transform: translateX(-50%); }
+      .dpad-btn.down { bottom: 0; left: 50%; transform: translateX(-50%); }
+      .dpad-btn.left { left: 0; top: 50%; transform: translateY(-50%); }
+      .dpad-btn.right { right: 0; top: 50%; transform: translateY(-50%); }
+      
+      .dpad-btn.up:active { transform: translateX(-50%) scale(0.95); }
+      .dpad-btn.down:active { transform: translateX(-50%) scale(0.95); }
+      .dpad-btn.left:active { transform: translateY(-50%) scale(0.95); }
+      .dpad-btn.right:active { transform: translateY(-50%) scale(0.95); }
+      
+      .dpad-center {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 40px;
+        height: 40px;
+        background: rgba(74, 144, 217, 0.3);
+        border-radius: 50%;
+      }
+      
+      /* Action buttons - right side */
+      #mobile-actions {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+      
+      .action-container {
+        position: relative;
+        width: 140px;
+        height: 140px;
+      }
+      
+      .action-btn {
+        position: absolute;
+        width: 64px;
+        height: 64px;
+        border: 3px solid rgba(255, 255, 255, 0.5);
         border-radius: 50%;
         color: white;
         font-size: 24px;
-        cursor: pointer;
-        z-index: 1000;
+        font-weight: bold;
+        display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        transition: transform 0.1s;
       }
       
-      #mobile-chat-toggle:active {
+      .action-btn:active {
+        transform: scale(0.9);
+      }
+      
+      .action-btn.btn-a {
+        background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+        bottom: 10px;
+        right: 10px;
+      }
+      
+      .action-btn.btn-b {
+        background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+        top: 10px;
+        left: 10px;
+      }
+      
+      /* Swap button in mobile controls area */
+      #mobile-swap-btn {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        border: none;
+        border-radius: 50%;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 101;
+      }
+      
+      #mobile-swap-btn:active {
+        transform: translateX(-50%) scale(0.95);
+      }
+      
+      /* Chat toggle in mobile controls area */
+      #mobile-chat-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        border: none;
+        border-radius: 50%;
+        color: white;
+        font-size: 20px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 101;
+      }
+      
+      #mobile-chat-btn:active {
         transform: scale(0.95);
       }
       
+      /* Swapped layout - D-pad on right, actions on left */
+      #mobile-controls-area.swapped #mobile-dpad {
+        order: 2;
+      }
+      
+      #mobile-controls-area.swapped #mobile-actions {
+        order: 1;
+      }
+      
+      /* Hide the old floating chat toggle on mobile */
+      #mobile-chat-toggle {
+        display: none !important;
+      }
+    }
+    
+    /* Desktop: Hide mobile controls area */
+    @media screen and (min-width: 1025px) {
+      #mobile-controls-area {
+        display: none !important;
+      }
+    }
+    
+    /* Touch devices: Mobile chat overlay */
+    @media (pointer: coarse) {
       /* Mobile chat overlay */
       #mobile-chat-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.9);
+        background: rgba(0, 0, 0, 0.95);
         z-index: 2000;
         display: none;
         flex-direction: column;
@@ -1754,13 +1936,13 @@
         position: absolute;
         top: 10px;
         right: 10px;
-        width: 40px;
-        height: 40px;
-        background: #2a2a3e;
+        width: 44px;
+        height: 44px;
+        background: #e94560;
         border: none;
         border-radius: 50%;
         color: #fff;
-        font-size: 24px;
+        font-size: 28px;
         cursor: pointer;
         z-index: 2001;
       }
@@ -1792,12 +1974,11 @@
     /* Safe area padding for notched devices */
     @supports (padding: env(safe-area-inset-top)) {
       #game-controls {
-        top: max(10px, env(safe-area-inset-top));
+        top: max(5px, env(safe-area-inset-top));
       }
       
-      #mobile-chat-toggle {
-        bottom: max(20px, env(safe-area-inset-bottom));
-        right: max(20px, env(safe-area-inset-right));
+      #mobile-controls-area {
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
       }
     }
   </style>
@@ -1973,7 +2154,43 @@
     </div>
   </div>
 
-  <!-- Mobile Chat Toggle Button (hidden on desktop) -->
+  <!-- Mobile Controls Area (hidden on desktop) -->
+  <div id="mobile-controls-area" style="display: none;">
+    <!-- Swap button -->
+    <button id="mobile-swap-btn" onclick="swapMobileControls()" title="Swap controls">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/>
+      </svg>
+    </button>
+    
+    <!-- Chat button -->
+    <button id="mobile-chat-btn" onclick="toggleMobileChat()" title="Open chat">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>
+      </svg>
+    </button>
+    
+    <!-- D-pad (left side by default) -->
+    <div id="mobile-dpad">
+      <div class="dpad-container">
+        <button class="dpad-btn up" data-dir="up">&#9650;</button>
+        <button class="dpad-btn down" data-dir="down">&#9660;</button>
+        <button class="dpad-btn left" data-dir="left">&#9664;</button>
+        <button class="dpad-btn right" data-dir="right">&#9654;</button>
+        <div class="dpad-center"></div>
+      </div>
+    </div>
+    
+    <!-- Action buttons (right side by default) -->
+    <div id="mobile-actions">
+      <div class="action-container">
+        <button class="action-btn btn-b" data-action="B">B</button>
+        <button class="action-btn btn-a" data-action="A">A</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Mobile Chat Toggle Button (hidden - using mobile-chat-btn instead) -->
   <button id="mobile-chat-toggle" style="display: none;" onclick="toggleMobileChat()">
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>
@@ -3052,25 +3269,142 @@
       }
     });
 
-    // Show mobile chat toggle on mobile devices
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-      const isMobile = window.innerWidth <= 768;
-      if (isMobile) {
-        document.getElementById('mobile-chat-toggle').style.display = 'block';
+    // ==========================================
+    // MOBILE CONTROLS - D-pad and Action Buttons
+    // ==========================================
+    
+    // Direction state for mobile D-pad
+    window.mobileDirection = { up: false, down: false, left: false, right: false };
+    
+    // Swap mobile controls (D-pad <-> Action buttons)
+    window.swapMobileControls = function() {
+      const controlsArea = document.getElementById('mobile-controls-area');
+      if (controlsArea) {
+        controlsArea.classList.toggle('swapped');
+        // Save preference
+        localStorage.setItem('mobileControlsSwapped', controlsArea.classList.contains('swapped'));
+      }
+    };
+    
+    // Initialize D-pad button event handlers
+    function initMobileDpad() {
+      const dpadBtns = document.querySelectorAll('.dpad-btn');
+      
+      dpadBtns.forEach(btn => {
+        const dir = btn.dataset.dir;
+        
+        // Touch events
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          window.mobileDirection[dir] = true;
+          btn.classList.add('active');
+        }, { passive: false });
+        
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          window.mobileDirection[dir] = false;
+          btn.classList.remove('active');
+        }, { passive: false });
+        
+        btn.addEventListener('touchcancel', (e) => {
+          window.mobileDirection[dir] = false;
+          btn.classList.remove('active');
+        });
+        
+        // Mouse events (for testing on desktop)
+        btn.addEventListener('mousedown', () => {
+          window.mobileDirection[dir] = true;
+          btn.classList.add('active');
+        });
+        
+        btn.addEventListener('mouseup', () => {
+          window.mobileDirection[dir] = false;
+          btn.classList.remove('active');
+        });
+        
+        btn.addEventListener('mouseleave', () => {
+          window.mobileDirection[dir] = false;
+          btn.classList.remove('active');
+        });
+      });
+    }
+    
+    // Initialize action button event handlers
+    function initMobileActionButtons() {
+      const actionBtns = document.querySelectorAll('.action-btn');
+      
+      actionBtns.forEach(btn => {
+        const action = btn.dataset.action;
+        
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          btn.classList.add('active');
+          triggerMobileAction(action);
+        }, { passive: false });
+        
+        btn.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          btn.classList.remove('active');
+        }, { passive: false });
+        
+        // Mouse events (for testing)
+        btn.addEventListener('mousedown', () => {
+          btn.classList.add('active');
+          triggerMobileAction(action);
+        });
+        
+        btn.addEventListener('mouseup', () => {
+          btn.classList.remove('active');
+        });
+      });
+    }
+    
+    // Trigger action button callback
+    function triggerMobileAction(action) {
+      if (action === 'A' && window.mobileActionA) {
+        window.mobileActionA();
+      } else if (action === 'B' && window.mobileActionB) {
+        window.mobileActionB();
       }
     }
-
-    // Update mobile chat visibility on resize
+    
+    // Show mobile controls on mobile devices
+    function checkMobileControls() {
+      const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isMobile = window.innerWidth <= 1024;
+      const controlsArea = document.getElementById('mobile-controls-area');
+      
+      if (hasTouch && isMobile && controlsArea) {
+        controlsArea.style.display = 'flex';
+        
+        // Restore swap preference
+        const swapped = localStorage.getItem('mobileControlsSwapped') === 'true';
+        if (swapped) {
+          controlsArea.classList.add('swapped');
+        }
+      } else if (controlsArea) {
+        controlsArea.style.display = 'none';
+      }
+    }
+    
+    // Initialize mobile controls when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      initMobileDpad();
+      initMobileActionButtons();
+      checkMobileControls();
+    });
+    
+    // Update mobile controls visibility on resize
     window.addEventListener('resize', function() {
+      checkMobileControls();
+      
       const toggle = document.getElementById('mobile-chat-toggle');
       const overlay = document.getElementById('mobile-chat-overlay');
-      const isMobile = window.innerWidth <= 768 && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+      const isMobile = window.innerWidth <= 1024 && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
       
       if (!isMobile) {
-        toggle.style.display = 'none';
-        overlay.classList.remove('active');
-      } else if (!overlay.classList.contains('active')) {
-        toggle.style.display = 'block';
+        if (toggle) toggle.style.display = 'none';
+        if (overlay) overlay.classList.remove('active');
       }
     });
   </script>
