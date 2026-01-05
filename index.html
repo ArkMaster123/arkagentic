@@ -2599,15 +2599,25 @@
     let unreadRoomMessages = 0;
 
     // Tab switching - only target desktop sidebar tabs (not mobile overlay tabs)
-    document.querySelectorAll('#chat-tabs .chat-tab').forEach(tab => {
-      tab.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const tabName = tab.dataset.tab;
-        console.log('[Chat] Tab clicked:', tabName);
-        switchChatTab(tabName);
+    function initChatTabs() {
+      const tabs = document.querySelectorAll('#chat-tabs .chat-tab');
+      console.log('[Chat] Found', tabs.length, 'chat tabs');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const tabName = tab.dataset.tab;
+          console.log('[Chat] Tab clicked:', tabName);
+          switchChatTab(tabName);
+        });
       });
-    });
+    }
+    
+    // Initialize tabs immediately and also on DOMContentLoaded (in case script runs early)
+    initChatTabs();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initChatTabs);
+    }
 
     function switchChatTab(tabName) {
       console.log('[Chat] Switching to tab:', tabName);
