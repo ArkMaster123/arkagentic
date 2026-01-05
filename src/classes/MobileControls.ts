@@ -1,4 +1,5 @@
 import { Scene, GameObjects } from 'phaser';
+import VirtualJoystick from 'phaser3-rex-plugins/plugins/virtualjoystick.js';
 
 /**
  * Mobile detection utilities
@@ -38,18 +39,6 @@ export interface MobileControlsCallbacks {
   onActionB?: () => void;  // Secondary action (cancel/back)
 }
 
-// Define joystick interface to avoid any type
-interface VirtualJoystick {
-  left: boolean;
-  right: boolean;
-  up: boolean;
-  down: boolean;
-  force: number;
-  rotation: number;
-  destroy: () => void;
-  setPosition: (x: number, y: number) => void;
-}
-
 /**
  * MobileControlsManager - Provides touch controls for mobile devices
  * 
@@ -63,7 +52,7 @@ export class MobileControlsManager {
   private scene: Scene;
   private enabled: boolean = false;
   
-  // Virtual joystick (using rex plugin)
+  // Virtual joystick (using rex plugin direct import)
   private joystick: VirtualJoystick | null = null;
   private joystickBase: GameObjects.Graphics | null = null;
   private joystickThumb: GameObjects.Graphics | null = null;
@@ -180,7 +169,7 @@ export class MobileControlsManager {
   }
   
   /**
-   * Create the virtual joystick using rex plugin
+   * Create the virtual joystick using direct class instantiation
    */
   private createJoystick(): void {
     const camera = this.scene.cameras.main;
@@ -211,31 +200,21 @@ export class MobileControlsManager {
     this.joystickThumb.setScrollFactor(0);
     this.joystickThumb.setDepth(10001);
     
-    // Get the VirtualJoystick plugin and create joystick
-    const plugin = this.scene.plugins.get('rexVirtualJoystick');
-    if (plugin) {
-      // Use type assertion through unknown to access plugin's add method
-      const joystickPlugin = plugin as unknown as { 
-        add: (scene: Scene, config: Record<string, unknown>) => VirtualJoystick 
-      };
-      
-      if (typeof joystickPlugin.add === 'function') {
-        this.joystick = joystickPlugin.add(this.scene, {
-          x: x,
-          y: y,
-          radius: this.JOYSTICK_RADIUS,
-          base: this.joystickBase,
-          thumb: this.joystickThumb,
-          dir: '8dir',
-          fixed: true,
-          enable: true,
-        });
-        console.log('[MobileControls] Joystick created via plugin');
-      } else {
-        console.warn('[MobileControls] rexVirtualJoystick plugin found but add method missing');
-      }
-    } else {
-      console.warn('[MobileControls] rexVirtualJoystick plugin not found, joystick will not work');
+    // Create joystick using direct class instantiation
+    try {
+      this.joystick = new VirtualJoystick(this.scene, {
+        x: x,
+        y: y,
+        radius: this.JOYSTICK_RADIUS,
+        base: this.joystickBase,
+        thumb: this.joystickThumb,
+        dir: '8dir',
+        fixed: true,
+        enable: true,
+      });
+      console.log('[MobileControls] Joystick created successfully');
+    } catch (err) {
+      console.error('[MobileControls] Failed to create joystick:', err);
     }
   }
   
@@ -317,6 +296,7 @@ export class MobileControlsManager {
     
     // Debounce the resize
     this.scene.time.delayedCall(100, () => {
+      if (!this.enabled) return;
       // Recreate controls with new positions
       this.destroyJoystick();
       this.destroyActionButtons();
