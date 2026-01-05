@@ -184,6 +184,14 @@ class ChatMessageRequest(BaseModel):
     sender_name: Optional[str] = None
 
 
+# Client-side debug logging (for mobile debugging)
+class ClientLogRequest(BaseModel):
+    level: str = "info"
+    message: str
+    data: Optional[dict] = None
+    user_agent: Optional[str] = None
+
+
 class ChatMessageResponse(BaseModel):
     id: str
     sender_type: str
@@ -265,6 +273,25 @@ app.add_middleware(
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "agentverse-api"}
+
+
+@app.post("/api/client-log")
+async def client_log(request: ClientLogRequest):
+    """Receive logs from client for debugging mobile issues."""
+    log_msg = f"[CLIENT] [{request.level.upper()}] {request.message}"
+    if request.data:
+        log_msg += f" | Data: {json.dumps(request.data)}"
+    if request.user_agent:
+        log_msg += f" | UA: {request.user_agent[:100]}"
+
+    if request.level == "error":
+        logger.error(log_msg)
+    elif request.level == "warn":
+        logger.warning(log_msg)
+    else:
+        logger.info(log_msg)
+
+    return {"status": "logged"}
 
 
 @app.get("/models")

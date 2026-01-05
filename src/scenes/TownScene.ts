@@ -348,21 +348,58 @@ export class TownScene extends Scene {
     }
   }
 
+  // Helper to send logs to server for mobile debugging
+  private serverLog(level: string, message: string, data?: Record<string, unknown>): void {
+    const logData = {
+      level,
+      message,
+      data,
+      user_agent: navigator.userAgent,
+    };
+    
+    // Log locally too
+    console.log(`[TownScene] ${message}`, data || '');
+    
+    // Send to server (fire and forget)
+    fetch('/api/client-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(logData),
+    }).catch(() => { /* ignore errors */ });
+  }
+
   private initMap(): void {
+    this.serverLog('info', 'initMap started', { 
+      screenWidth: window.innerWidth,
+      screenHeight: window.innerHeight,
+      gameWidth: this.game.scale.width,
+      gameHeight: this.game.scale.height,
+      devicePixelRatio: window.devicePixelRatio,
+    });
+
     this.map = this.make.tilemap({
       key: 'town',
       tileWidth: 16,
       tileHeight: 16,
     });
     
-    console.log('[TownScene] Map created:', this.map.width, 'x', this.map.height, 'tiles');
+    this.serverLog('info', 'Map created', { 
+      mapWidth: this.map.width, 
+      mapHeight: this.map.height,
+      widthInPixels: this.map.widthInPixels,
+      heightInPixels: this.map.heightInPixels,
+    });
+    
+    // Check if tiles texture exists
+    const tilesExists = this.textures.exists('tiles');
+    this.serverLog('info', 'Tiles texture check', { exists: tilesExists });
     
     this.tileset = this.map.addTilesetImage('town', 'tiles')!;
     
     if (!this.tileset) {
-      console.error('[TownScene] TILESET FAILED TO LOAD! Check if tiles texture exists:', this.textures.exists('tiles'));
+      this.serverLog('error', 'TILESET FAILED TO LOAD', { tilesExists });
     } else {
-      console.log('[TownScene] Tileset loaded:', this.tileset.name);
+      this.serverLog('info', 'Tileset loaded', { name: this.tileset.name });
     }
     
     // Create layers
@@ -370,9 +407,19 @@ export class TownScene extends Scene {
     this.wallLayer = this.map.createLayer('wall', this.tileset, 0, 0)!;
     
     if (!this.groundLayer) {
-      console.error('[TownScene] GROUND LAYER FAILED! Available layers:', this.map.layers.map(l => l.name));
+      this.serverLog('error', 'GROUND LAYER FAILED', { 
+        availableLayers: this.map.layers.map(l => l.name) 
+      });
     } else {
-      console.log('[TownScene] Ground layer created, visible:', this.groundLayer.visible, 'alpha:', this.groundLayer.alpha);
+      this.serverLog('info', 'Ground layer created', { 
+        visible: this.groundLayer.visible, 
+        alpha: this.groundLayer.alpha,
+        depth: this.groundLayer.depth,
+        x: this.groundLayer.x,
+        y: this.groundLayer.y,
+        width: this.groundLayer.width,
+        height: this.groundLayer.height,
+      });
     }
     
     // Try to create optional layers (may not exist in all tilemaps)
