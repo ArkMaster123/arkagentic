@@ -567,3 +567,13 @@ When tilemaps render on desktop but not mobile, and sprites work fine on both, i
 - `backend/server.py` - Added `/api/client-log` endpoint (useful for future mobile debugging)
 
 *Last updated: 2026-01-05 (Mobile Tilemap Fix - Canvas Renderer)*
+
+### 2026-01-05 (Room Chat Tab Fix)
+- **Bug:** Clicking "Room Chat" tab on desktop browser wasn't switching tabs
+- **Cause:** `document.querySelectorAll('.chat-tab')` was selecting ALL tabs including mobile overlay tabs, causing conflicts
+- **Fix:** Changed selector to `#chat-tabs .chat-tab` to only target desktop sidebar tabs
+- Added `e.preventDefault()` and `e.stopPropagation()` to prevent event bubbling
+- Added console logging for debugging tab switches
+- Added null checks for content elements
+
+*Last updated: 2026-01-05 (Room Chat Tab Fix)*
