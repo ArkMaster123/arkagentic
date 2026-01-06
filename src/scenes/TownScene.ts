@@ -1084,6 +1084,11 @@ export class TownScene extends Scene {
       this.mobileControls.destroy();
       this.mobileControls = null;
     }
+    
+    // Clean up all agents to prevent them from accessing scene methods during shutdown
+    // This stops their wander timers and prevents worldToTile crashes
+    this.agents.forEach(agent => agent.destroy());
+    this.agents.clear();
   }
 
   /**
