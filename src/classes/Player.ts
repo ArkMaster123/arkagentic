@@ -277,8 +277,8 @@ export class Player extends Actor {
       this.nameLabel = null;
     }
     
-    // Clean up keyboard listeners
-    if (this.scene.input.keyboard) {
+    // Clean up keyboard listeners (check scene.input exists - may be undefined during shutdown)
+    if (this.scene?.input?.keyboard) {
       if (this.cursors) {
         this.cursors.up?.destroy();
         this.cursors.down?.destroy();

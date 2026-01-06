@@ -530,8 +530,8 @@ export class MiniMap {
   // Clean up
   public destroy(): void {
     this.closeModal();
-    this.container.destroy();
-    if (this.miniMapCamera) {
+    this.container?.destroy();
+    if (this.miniMapCamera && this.scene?.cameras) {
       this.scene.cameras.remove(this.miniMapCamera);
     }
   }
