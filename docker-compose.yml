@@ -90,7 +90,7 @@ services:
     environment:
       - VITE_API_URL=http://localhost:3001
       - VITE_WS_URL=ws://localhost:2567
-      - VITE_JITSI_DOMAIN=meet.jit.si
+      - VITE_JITSI_DOMAIN=https://jitsi.coolify.th3ark.com
     depends_on:
       - backend
       - multiplayer
