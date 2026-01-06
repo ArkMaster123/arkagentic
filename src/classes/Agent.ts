@@ -50,6 +50,7 @@ export class Agent extends Actor {
   private homeTileY: number = 0;
   private wanderRadius: number = 5; // tiles
   private isBusy: boolean = false; // true when responding to a query
+  private isDestroyed: boolean = false; // prevent double-destroy crashes
 
   constructor(
     scene: Phaser.Scene,
@@ -151,7 +152,10 @@ export class Agent extends Actor {
   }
 
   update(): void {
-    const agentScene = this.scene as IAgentScene;
+    // Skip update if destroyed or scene is shutting down
+    if (this.isDestroyed || !this.scene?.sys?.isActive()) {
+      return;
+    }
     
     // Handle grid-based movement
     if (this.isMovingToTile) {
@@ -692,9 +696,20 @@ export class Agent extends Actor {
   }
 
   destroy(fromScene?: boolean): void {
-    // Free the tile we're occupying (only if scene implements IAgentScene)
-    if (isAgentScene(this.scene)) {
-      this.scene.freeTile(this.tileX, this.tileY);
+    // Prevent double-destroy which can happen when scene shuts down
+    if (this.isDestroyed) {
+      return;
+    }
+    this.isDestroyed = true;
+    
+    // Free the tile we're occupying (only if scene is still valid and implements IAgentScene)
+    // Check scene.sys exists to ensure scene hasn't started shutting down
+    if (this.scene?.sys?.isActive() && isAgentScene(this.scene)) {
+      try {
+        this.scene.freeTile(this.tileX, this.tileY);
+      } catch (e) {
+        // Scene may be in partial shutdown state, ignore errors
+      }
     }
     
     // Stop wandering timer
