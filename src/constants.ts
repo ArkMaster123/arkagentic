@@ -88,32 +88,15 @@ export const API_BASE_URL = (import.meta as any).env?.DEV ? 'http://localhost:30
 // Minimum requirements: 4 CPU cores, 8GB RAM, valid SSL certificate
 //
 export const JITSI_CONFIG = {
-  // List of free Jitsi servers to try (in order of preference)
-  // These servers allow anonymous meetings without authentication
-  freeServers: [
-    'fairmeeting.net',              // GDPR compliant, privacy-focused
-    'calls.disroot.org',            // Disroot privacy service
-    'meet.ffmuc.net',               // Freifunk Munich community
-    'meet.systemli.org',            // Systemli privacy service
-    'meet.coredump.ch',              // Swiss server
-    'meet.init7.net',                // Swiss community server
-    'jitsi.riot.im',                 // Matrix/Riot server
-    'meet.nerd.re',                  // Community server
-    'jitsi.hamburg.ccc.de',          // Chaos Computer Club Hamburg
-    'meet.golem.de',                 // Golem.de server
-    'meet.in-berlin.de',             // Berlin community
-    'jitsi.freifunk-duesseldorf.de', // Freifunk Düsseldorf
-    'meet.rexum.space',              // Community server
-    'meet.coredump.ch',              // Swiss server
-    'jitsi.projectsegfau.lt',        // Community server
-  ],
+  // Self-hosted Jitsi server only - no fallbacks
+  freeServers: [],
   
-  // Jitsi server domain (if set via env, uses that; otherwise tries freeServers list)
-  // Set VITE_JITSI_DOMAIN to use a specific server
-  domain: (import.meta as any).env?.VITE_JITSI_DOMAIN || null,
+  // Jitsi server from env var (VITE_JITSI_DOMAIN in .env.local)
+  // Falls back to self-hosted server if not set
+  domain: (import.meta as any).env?.VITE_JITSI_DOMAIN || 'jitsi.coolify.th3ark.com',
   
-  // Fallback server if all free servers fail (meet.jit.si requires auth but is most reliable)
-  fallbackDomain: 'meet.jit.si',
+  // No fallback - only use the configured server
+  fallbackDomain: null,
   
   // Container element ID for the iframe
   containerId: 'jitsi-frame',

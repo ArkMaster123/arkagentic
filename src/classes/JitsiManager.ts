@@ -202,15 +202,18 @@ export class JitsiManager {
         script.src = `https://${domain}/external_api.js`;
         script.async = true;
         
-        script.onload = () => {
-          this.isJitsiLoaded = true;
-          this.workingDomain = domain; // Store the working domain
-          console.log(`[JitsiManager] ✅ External API loaded from ${domain}`);
-          resolve();
-        };
+        // Timeout after 5 seconds to try next server faster
+        const timeout = setTimeout(() => {
+          if (!this.isJitsiLoaded) {
+            console.warn(`[JitsiManager] ⏱️ Timeout loading from ${domain}, trying next...`);
+            script.onload = null;
+            script.onerror = null;
+            tryNextServer();
+          }
+        }, 5000);
         
-        script.onerror = () => {
-          console.warn(`[JitsiManager] ❌ Failed to load from ${domain}`);
+        const tryNextServer = () => {
+          clearTimeout(timeout);
           currentIndex++;
           
           // Try next server in list
@@ -221,6 +224,19 @@ export class JitsiManager {
             console.error('[JitsiManager] Failed to load Jitsi external API from all servers');
             reject(new Error('Failed to load Jitsi API from any server'));
           }
+        };
+        
+        script.onload = () => {
+          clearTimeout(timeout);
+          this.isJitsiLoaded = true;
+          this.workingDomain = domain; // Store the working domain
+          console.log(`[JitsiManager] ✅ External API loaded from ${domain}`);
+          resolve();
+        };
+        
+        script.onerror = () => {
+          console.warn(`[JitsiManager] ❌ Failed to load from ${domain}`);
+          tryNextServer();
         };
         
         document.head.appendChild(script);
