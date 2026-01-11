@@ -1045,24 +1045,29 @@
     }
 
     .avatar-option img {
-      display: none; /* Hide img, use background instead */
+      display: none; /* Hide img, use sprite div instead */
     }
     
-    /* Sprite sheets are 12 frames horizontal. We show first frame only.
-       background-size: 720% shows first frame with some padding around it.
-       background-position: 0 center shows first frame centered. */
-    .avatar-option[data-avatar] {
+    /* Avatar sprites - same style as sidebar agent sprites */
+    .avatar-option .avatar-sprite {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      -webkit-image-rendering: pixelated;
+      width: 32px;
+      height: 40px;
+      background-size: 384px 40px;
       background-repeat: no-repeat;
-      background-position: 0% center;
-      background-size: 720% auto;
+      background-position: 0 0;
+      animation: sprite-walk-16 0.5s steps(3) infinite;
     }
-    .avatar-option[data-avatar="brendan"] { background-image: url('/assets/sprites/brendan.png'); }
-    .avatar-option[data-avatar="may"] { background-image: url('/assets/sprites/may.png'); }
-    .avatar-option[data-avatar="joseph"] { background-image: url('/assets/sprites/joseph.png'); }
-    .avatar-option[data-avatar="archie"] { background-image: url('/assets/sprites/archie.png'); }
-    .avatar-option[data-avatar="maxie"] { background-image: url('/assets/sprites/maxie.png'); }
-    .avatar-option[data-avatar="steven"] { background-image: url('/assets/sprites/steven.png'); }
-    .avatar-option[data-avatar="birch"] { background-image: url('/assets/sprites/birch.png'); }
+    
+    /* 14px wide sprites (brendan, may, joseph) */
+    .avatar-option .avatar-sprite.sprite-14 {
+      width: 28px;
+      height: 40px;
+      background-size: 336px 40px;
+      animation: sprite-walk-14 0.5s steps(3) infinite;
+    }
 
     .info-row {
       display: flex;
@@ -2722,25 +2727,25 @@
             <label>Avatar</label>
             <div class="avatar-picker" id="settings-avatar-picker">
               <div class="avatar-option" data-avatar="brendan" title="Brendan">
-                <img src="/assets/sprites/brendan.png" alt="Brendan" />
+                <div class="avatar-sprite sprite-14" style="background-image: url('/assets/sprites/brendan.png');"></div>
               </div>
               <div class="avatar-option" data-avatar="may" title="May">
-                <img src="/assets/sprites/may.png" alt="May" />
+                <div class="avatar-sprite sprite-14" style="background-image: url('/assets/sprites/may.png');"></div>
               </div>
               <div class="avatar-option" data-avatar="joseph" title="Joseph">
-                <img src="/assets/sprites/joseph.png" alt="Joseph" />
+                <div class="avatar-sprite sprite-14" style="background-image: url('/assets/sprites/joseph.png');"></div>
               </div>
               <div class="avatar-option" data-avatar="archie" title="Archie">
-                <img src="/assets/sprites/archie.png" alt="Archie" />
+                <div class="avatar-sprite" style="background-image: url('/assets/sprites/archie.png');"></div>
               </div>
               <div class="avatar-option" data-avatar="maxie" title="Maxie">
-                <img src="/assets/sprites/maxie.png" alt="Maxie" />
+                <div class="avatar-sprite" style="background-image: url('/assets/sprites/maxie.png');"></div>
               </div>
               <div class="avatar-option" data-avatar="steven" title="Steven">
-                <img src="/assets/sprites/steven.png" alt="Steven" />
+                <div class="avatar-sprite" style="background-image: url('/assets/sprites/steven.png');"></div>
               </div>
               <div class="avatar-option" data-avatar="birch" title="Birch">
-                <img src="/assets/sprites/birch.png" alt="Birch" />
+                <div class="avatar-sprite" style="background-image: url('/assets/sprites/birch.png');"></div>
               </div>
             </div>
           </div>
