@@ -127,15 +127,17 @@ function isMobileDevice(): boolean {
 
 // Determine the game canvas size
 const isMobile = isMobileDevice();
+const isFirefox = /firefox/i.test(navigator.userAgent);
+const useCanvasRenderer = isMobile || isFirefox;
 
 // IMPORTANT: Keep internal game resolution fixed at 800x600 for consistent rendering
 // Phaser's scale manager will handle fitting to the screen
 // Using dynamic resolution was causing tilemap rendering issues on mobile
 export const gameConfig: Types.Core.GameConfig = {
   title: 'AgentVerse - Multi-Agent Collaboration',
-  // Force CANVAS on mobile - WebGL has tilemap rendering issues on some mobile devices
+  // Force CANVAS on mobile/Firefox - WebGL tilemaps can fail on some devices
   // Use WEBGL on desktop for better performance
-  type: isMobile ? CANVAS : WEBGL,
+  type: useCanvasRenderer ? CANVAS : WEBGL,
   parent: 'game',
   backgroundColor: '#1a1a2e',
   scale: {
