@@ -99,6 +99,12 @@ export class MultiplayerManager {
    * @param playerInfo - Optional player info (name, avatar) to use instead of localStorage
    */
   async connect(roomSlug: string = 'town', playerInfo?: { displayName?: string; avatarSprite?: string; userId?: string }): Promise<boolean> {
+    // Guard against double connections
+    if (this.isConnected && this.room) {
+      console.log('[Multiplayer] Already connected, skipping duplicate connect');
+      return true;
+    }
+    
     try {
       // Use provided player info or load from localStorage
       if (playerInfo?.displayName) {

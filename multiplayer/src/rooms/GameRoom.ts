@@ -84,12 +84,29 @@ export class GameRoom extends Room<GameRoomState> {
   }
   
   onJoin(client: Client, options: JoinOptions) {
-    console.log(`[GameRoom] ${client.sessionId} joined (${options.displayName || 'Anonymous'})`);
+    const displayName = options.displayName || 'Anonymous';
+    const userId = options.userId || "";
+    
+    // Check for duplicate userId - kick existing player with same userId
+    if (userId) {
+      this.state.players.forEach((existingPlayer, existingSessionId) => {
+        if (existingPlayer.userId === userId && existingSessionId !== client.sessionId) {
+          console.log(`[GameRoom] Removing duplicate player: ${existingPlayer.displayName} (userId: ${userId})`);
+          this.state.players.delete(existingSessionId);
+          this.broadcast("playerLeft", {
+            sessionId: existingSessionId,
+            displayName: existingPlayer.displayName
+          });
+        }
+      });
+    }
+    
+    console.log(`[GameRoom] ${client.sessionId} joined (${displayName})`);
     
     const player = new Player();
     player.sessionId = client.sessionId;
-    player.userId = options.userId || "";
-    player.displayName = options.displayName || "Anonymous";
+    player.userId = userId;
+    player.displayName = displayName;
     player.avatarSprite = options.avatarSprite || "brendan";
     player.currentRoom = this.state.roomSlug;
     player.lastUpdate = Date.now();
