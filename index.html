@@ -1048,41 +1048,57 @@
       display: none; /* Hide img, use background instead */
     }
     
-    .avatar-option {
-      background-size: auto 100%;
-      background-repeat: no-repeat;
-      background-position: 0 0;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
-    }
-    
+    /* Sprite sheets are 12 frames horizontal. We show first frame only.
+       background-size: 1200% stretches so 1 frame = 100% of container width.
+       background-position: 0 center shows first frame centered vertically. */
     .avatar-option[data-avatar="brendan"] {
       background-image: url('/assets/sprites/brendan.png');
-      background-size: auto 40px; /* 14x21 sprite, scaled up */
+      background-size: 1200% auto;
+      background-position: 0% center;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
     }
     .avatar-option[data-avatar="may"] {
       background-image: url('/assets/sprites/may.png');
-      background-size: auto 40px; /* 14x20 sprite, scaled up */
+      background-size: 1200% auto;
+      background-position: 0% center;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
     }
     .avatar-option[data-avatar="joseph"] {
       background-image: url('/assets/sprites/joseph.png');
-      background-size: auto 40px; /* 14x21 sprite, scaled up */
+      background-size: 1200% auto;
+      background-position: 0% center;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
     }
     .avatar-option[data-avatar="archie"] {
       background-image: url('/assets/sprites/archie.png');
-      background-size: auto 40px; /* 16x20 sprite, scaled up */
+      background-size: 1200% auto;
+      background-position: 0% center;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
     }
     .avatar-option[data-avatar="maxie"] {
       background-image: url('/assets/sprites/maxie.png');
-      background-size: auto 40px; /* 16x20 sprite, scaled up */
+      background-size: 1200% auto;
+      background-position: 0% center;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
     }
     .avatar-option[data-avatar="steven"] {
       background-image: url('/assets/sprites/steven.png');
-      background-size: auto 40px; /* 16x21 sprite, scaled up */
+      background-size: 1200% auto;
+      background-position: 0% center;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
     }
     .avatar-option[data-avatar="birch"] {
       background-image: url('/assets/sprites/birch.png');
-      background-size: auto 40px; /* 16x20 sprite, scaled up */
+      background-size: 1200% auto;
+      background-position: 0% center;
+      background-repeat: no-repeat;
+      image-rendering: pixelated;
     }
 
     .info-row {
