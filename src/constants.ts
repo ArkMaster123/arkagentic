@@ -76,7 +76,7 @@ export const API_BASE_URL = (import.meta as any).env?.DEV ? 'http://localhost:30
 
 // Cloudflare Agents API - for agents migrated to Cloudflare Workers
 // In development, uses local wrangler dev server; in production, uses deployed worker
-export const CF_AGENTS_URL = (import.meta as any).env?.DEV ? 'http://localhost:8787' : 'https://agentverse-agents.YOUR_SUBDOMAIN.workers.dev';
+export const CF_AGENTS_URL = (import.meta as any).env?.DEV ? 'http://localhost:8787' : 'https://agentverse-agents.noah-santoni.workers.dev';
 
 // Agents that have been migrated to Cloudflare Workers
 export const CF_AGENTS: string[] = ['sage'];
