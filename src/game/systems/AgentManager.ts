@@ -13,7 +13,7 @@
 import { Scene, GameObjects, Physics } from 'phaser';
 import { Agent } from '../../classes/Agent';
 import eventsCenter from '../../classes/EventCenter';
-import { AGENTS, MEETING_POINT, API_BASE_URL } from '../../constants';
+import { AGENTS, MEETING_POINT, API_BASE_URL, CF_AGENTS_URL, CF_AGENTS } from '../../constants';
 import { GameBridge } from '../../core';
 
 // Agent spawn positions in the town
@@ -239,6 +239,7 @@ export class AgentManager {
 
   /**
    * Call the agent API with streaming support
+   * Routes to Cloudflare Workers for migrated agents (sage)
    * @param query The user's query
    * @param agentType The agent to respond
    * @param onChunk Optional callback for streaming chunks
@@ -249,12 +250,22 @@ export class AgentManager {
     agentType: string,
     onChunk?: (chunk: string, fullText: string) => void
   ): Promise<AgentAPIResponse> {
+    // Check if this agent has been migrated to Cloudflare
+    const useCloudflare = CF_AGENTS.includes(agentType);
+    const baseUrl = useCloudflare ? CF_AGENTS_URL : API_BASE_URL;
+    
+    if (useCloudflare) {
+      console.log(`[AgentManager] Using Cloudflare agent for: ${agentType}`);
+    }
+
     try {
       // Get user's preferred AI model
       const userModel = GameBridge.userPreferredModel;
 
       // Use streaming endpoint for real-time response
-      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+      // Cloudflare agents use /api/chat/stream, Python backend uses /chat/stream
+      const streamPath = useCloudflare ? '/api/chat/stream' : '/chat/stream';
+      const response = await fetch(`${baseUrl}${streamPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -262,6 +273,7 @@ export class AgentManager {
           agent: agentType,
           use_swarm: false,
           model_id: userModel,
+          modelId: userModel, // Cloudflare uses modelId
         }),
       });
 
@@ -334,14 +346,20 @@ export class AgentManager {
    * Fallback to non-streaming API
    */
   private async callAgentAPIFallback(query: string, agentType: string): Promise<AgentAPIResponse> {
+    // Check if this agent has been migrated to Cloudflare
+    const useCloudflare = CF_AGENTS.includes(agentType);
+    const baseUrl = useCloudflare ? CF_AGENTS_URL : API_BASE_URL;
+    const chatPath = useCloudflare ? '/api/chat' : '/chat';
+
     try {
-      const response = await fetch(`${API_BASE_URL}/chat`, {
+      const response = await fetch(`${baseUrl}${chatPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
           agent: agentType,
           use_swarm: false,
+          modelId: GameBridge.userPreferredModel, // For Cloudflare agents
         }),
       });
 
@@ -359,8 +377,11 @@ export class AgentManager {
 
     // Return mock response for demo
     const agentConfig = AGENTS[agentType as keyof typeof AGENTS];
+    const serverHint = useCloudflare 
+      ? 'Start it with: cd cloudflare-agents && npm run dev'
+      : 'Start it with: cd backend && source venv/bin/activate && python server.py';
     return {
-      response: `[${agentConfig?.name || agentType}] I'm ready to help! However, the backend server isn't running. Start it with: cd backend && source venv/bin/activate && python server.py`,
+      response: `[${agentConfig?.name || agentType}] I'm ready to help! However, the backend server isn't running. ${serverHint}`,
       agent: agentType,
       handoffs: [agentType],
     };

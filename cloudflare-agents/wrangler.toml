@@ -1,0 +1,23 @@
+# AgentVerse Cloudflare Agents
+# Each agent is a Durable Object with persistent SQLite storage
+
+name = "agentverse-agents"
+main = "src/index.ts"
+compatibility_date = "2025-01-17"
+compatibility_flags = ["nodejs_compat"]
+
+# Durable Objects - one for each agent type
+[[durable_objects.bindings]]
+name = "SageAgent"
+class_name = "SageAgent"
+
+# Migrations for SQLite storage
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SageAgent"]
+
+# Environment variables (set via wrangler secret)
+# OPENROUTER_API_KEY - for AI model access
+
+[vars]
+DEFAULT_MODEL = "mistralai/mistral-nemo"

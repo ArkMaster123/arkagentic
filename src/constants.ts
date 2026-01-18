@@ -74,6 +74,13 @@ export const MEETING_POINT = {
 // API endpoint - use relative path in production, localhost in development
 export const API_BASE_URL = (import.meta as any).env?.DEV ? 'http://localhost:3001' : '/api';
 
+// Cloudflare Agents API - for agents migrated to Cloudflare Workers
+// In development, uses local wrangler dev server; in production, uses deployed worker
+export const CF_AGENTS_URL = (import.meta as any).env?.DEV ? 'http://localhost:8787' : 'https://agentverse-agents.YOUR_SUBDOMAIN.workers.dev';
+
+// Agents that have been migrated to Cloudflare Workers
+export const CF_AGENTS: string[] = ['sage'];
+
 // Jitsi configuration
 // 
 // DEFAULT: Uses public Jitsi servers (free, no setup required, NO AUTHENTICATION REQUIRED)
@@ -96,7 +103,7 @@ export const JITSI_CONFIG = {
   domain: (import.meta as any).env?.VITE_JITSI_DOMAIN || 'jitsi.coolify.th3ark.com',
   
   // No fallback - only use the configured server
-  fallbackDomain: null,
+  fallbackDomain: undefined,
   
   // Container element ID for the iframe
   containerId: 'jitsi-frame',
