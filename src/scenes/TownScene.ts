@@ -23,6 +23,28 @@ const MEETING_ROOM_ENTRANCE = {
   height: 64,
 };
 
+// Chatbot Ruins Museum entrance zone configuration
+// Located at the top-left exit of the village
+const CHATBOT_RUINS_ENTRANCE = {
+  name: 'Chatbot Ruins',
+  description: 'Museum of LLM History',
+  x: 0,        // Far left edge where the path exits
+  y: 272,      // Row 17 - where the left exit path is (17 * 16 = 272)
+  width: 32,
+  height: 48,
+};
+
+// Secret "Slim Shady" room entrance - hidden behind trees at bottom right
+// Easter egg: When players find it, they get duplicated into many clones that dance
+const SLIM_SHADY_ENTRANCE = {
+  name: 'Slim Shady Room',
+  description: '???',
+  x: 720,      // Far right, behind trees/buildings
+  y: 400,      // Bottom area
+  width: 32,
+  height: 32,
+};
+
 interface ConversationMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -80,6 +102,15 @@ export class TownScene extends Scene {
   private nearMeetingRoomEntrance: boolean = false;
   private meetingRoomPrompt: GameObjects.Container | null = null;
   private meetingRoomSign: GameObjects.Container | null = null;
+  
+  // Chatbot Ruins entrance
+  private nearChatbotRuinsEntrance: boolean = false;
+  private chatbotRuinsPrompt: GameObjects.Container | null = null;
+  private chatbotRuinsSign: GameObjects.Container | null = null;
+  
+  // Slim Shady secret entrance
+  private nearSlimShadyEntrance: boolean = false;
+  private slimShadyPrompt: GameObjects.Container | null = null;
   
   // Nearby agent for chat interaction
   private nearbyAgent: { type: string; agent: Agent } | null = null;
@@ -145,6 +176,8 @@ export class TownScene extends Scene {
     // Jitsi disabled in town - only available in Meeting Rooms
     // this.initJitsi();
     this.createMeetingRoomSign();
+    this.createChatbotRuinsSign();
+    this.createSlimShadyHint();
     
     // Listen for global events
     this.setupEventListeners();
@@ -179,6 +212,12 @@ export class TownScene extends Scene {
       
       // Check for meeting room entrance
       this.checkMeetingRoomProximity();
+      
+      // Check for Chatbot Ruins entrance
+      this.checkChatbotRuinsProximity();
+      
+      // Check for secret Slim Shady entrance
+      this.checkSlimShadyProximity();
       
       // Check for nearby agents to chat with
       this.checkAgentProximity();
@@ -582,6 +621,8 @@ export class TownScene extends Scene {
           this.enterBuilding(this.nearbyDoor);
         } else if (this.nearMeetingRoomEntrance) {
           this.enterMeetingRooms();
+        } else if (this.nearChatbotRuinsEntrance) {
+          this.enterChatbotRuins();
         } else if (this.nearbyAgent) {
           this.startAgentChat();
         }
@@ -819,6 +860,289 @@ export class TownScene extends Scene {
     zoneIndicator.lineStyle(1, 0x4a90d9, 0.3);
     zoneIndicator.strokeRect(entrance.x, entrance.y, entrance.width, entrance.height);
     zoneIndicator.setDepth(1);
+  }
+  
+  /**
+   * Create a visual sign for the Chatbot Ruins entrance on the far left of the map
+   */
+  private createChatbotRuinsSign(): void {
+    const entrance = CHATBOT_RUINS_ENTRANCE;
+    
+    // Create a sign post container
+    this.chatbotRuinsSign = this.add.container(entrance.x + entrance.width / 2, entrance.y - 20);
+    this.chatbotRuinsSign.setDepth(50);
+    
+    // Sign background - ancient stone look
+    const signBg = this.add.graphics();
+    signBg.fillStyle(0x6B6B6B, 1); // Stone gray
+    signBg.fillRoundedRect(-45, -20, 90, 24, 4);
+    signBg.fillStyle(0x4a4a4a, 1);
+    signBg.fillRect(-2, 4, 4, 30); // Post
+    
+    // Sign text
+    const signText = this.add.text(0, -8, 'Chatbot Ruins', {
+      fontSize: '7px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    
+    // Mystical indicator
+    const subText = this.add.text(0, 2, 'LLM Museum', {
+      fontSize: '5px',
+      color: '#88ccff',
+    }).setOrigin(0.5);
+    
+    this.chatbotRuinsSign.add([signBg, signText, subText]);
+    
+    // Create a subtle floor indicator for the entrance zone
+    const zoneIndicator = this.add.graphics();
+    zoneIndicator.fillStyle(0x88ccff, 0.15);
+    zoneIndicator.fillRect(entrance.x, entrance.y, entrance.width, entrance.height);
+    zoneIndicator.lineStyle(1, 0x88ccff, 0.3);
+    zoneIndicator.strokeRect(entrance.x, entrance.y, entrance.width, entrance.height);
+    zoneIndicator.setDepth(1);
+  }
+  
+  /**
+   * Create a very subtle hint for the secret Slim Shady room
+   * It's meant to be discovered, not obvious
+   */
+  private createSlimShadyHint(): void {
+    const entrance = SLIM_SHADY_ENTRANCE;
+    
+    // Create a very subtle, barely visible floor marking
+    // Players who explore carefully might notice it
+    const hint = this.add.graphics();
+    hint.fillStyle(0xff00ff, 0.05); // Very faint magenta
+    hint.fillRect(entrance.x, entrance.y, entrance.width, entrance.height);
+    hint.setDepth(1);
+    
+    // Add a tiny, mysterious symbol that's easy to miss
+    const mysteryText = this.add.text(
+      entrance.x + entrance.width / 2,
+      entrance.y + entrance.height / 2,
+      '?',
+      {
+        fontSize: '8px',
+        color: '#ff00ff',
+      }
+    ).setOrigin(0.5).setAlpha(0.3).setDepth(2);
+    
+    // Very slow, subtle pulse
+    this.tweens.add({
+      targets: [hint, mysteryText],
+      alpha: { from: 0.2, to: 0.4 },
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+  
+  /**
+   * Check if player is near the secret Slim Shady entrance
+   */
+  private checkSlimShadyProximity(): void {
+    if (!this.player) return;
+    
+    const entrance = SLIM_SHADY_ENTRANCE;
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+    
+    const isNear = (
+      playerX >= entrance.x &&
+      playerX <= entrance.x + entrance.width &&
+      playerY >= entrance.y &&
+      playerY <= entrance.y + entrance.height
+    );
+    
+    if (isNear !== this.nearSlimShadyEntrance) {
+      this.nearSlimShadyEntrance = isNear;
+      this.updateSlimShadyPrompt();
+    }
+  }
+  
+  /**
+   * Show/hide the Slim Shady entrance prompt
+   */
+  private updateSlimShadyPrompt(): void {
+    // Remove existing prompt
+    if (this.slimShadyPrompt) {
+      this.slimShadyPrompt.destroy();
+      this.slimShadyPrompt = null;
+    }
+    
+    if (!this.nearSlimShadyEntrance || !this.player) return;
+    
+    const entrance = SLIM_SHADY_ENTRANCE;
+    
+    // Create mysterious prompt
+    this.slimShadyPrompt = this.add.container(
+      entrance.x + entrance.width / 2,
+      entrance.y - 30
+    );
+    this.slimShadyPrompt.setDepth(200);
+    
+    // Background - magenta/pink theme
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.9);
+    bg.fillRoundedRect(-70, -14, 140, 28, 6);
+    bg.lineStyle(1, 0xff00ff);
+    bg.strokeRoundedRect(-70, -14, 140, 28, 6);
+    
+    // Text
+    const text = this.add.text(0, -2, 'Press SPACE to enter', {
+      fontSize: '9px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    const nameText = this.add.text(0, 8, '??? Secret Room ???', {
+      fontSize: '8px',
+      color: '#ff00ff',
+    }).setOrigin(0.5);
+    
+    this.slimShadyPrompt.add([bg, text, nameText]);
+    
+    // Pulse animation
+    this.tweens.add({
+      targets: this.slimShadyPrompt,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+  
+  /**
+   * Enter the secret Slim Shady room
+   */
+  private enterSlimShadyRoom(): void {
+    // Disable further input while transitioning
+    this.input.enabled = false;
+    
+    // Change room but keep connection alive
+    this.cleanupBeforeSceneChange('slimshady');
+    
+    // Update URL
+    window.history.pushState({}, '', '/slimshady');
+    
+    // Show transition with mysterious message
+    GameBridge.showTransition(
+      `/assets/sprites/${this.playerAvatar}.png`,
+      'Will the real you please stand up?',
+      () => {
+        this.scene.start('slimshady-scene', {
+          fromTown: true,
+          playerAvatar: this.playerAvatar,
+          playerName: this.playerName,
+        });
+      }
+    );
+  }
+  
+  /**
+   * Check if player is near the Chatbot Ruins entrance
+   */
+  private checkChatbotRuinsProximity(): void {
+    if (!this.player) return;
+    
+    const entrance = CHATBOT_RUINS_ENTRANCE;
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+    
+    const isNear = (
+      playerX >= entrance.x &&
+      playerX <= entrance.x + entrance.width &&
+      playerY >= entrance.y &&
+      playerY <= entrance.y + entrance.height
+    );
+    
+    if (isNear !== this.nearChatbotRuinsEntrance) {
+      this.nearChatbotRuinsEntrance = isNear;
+      this.updateChatbotRuinsPrompt();
+    }
+  }
+  
+  /**
+   * Show/hide the Chatbot Ruins entrance prompt
+   */
+  private updateChatbotRuinsPrompt(): void {
+    // Remove existing prompt
+    if (this.chatbotRuinsPrompt) {
+      this.chatbotRuinsPrompt.destroy();
+      this.chatbotRuinsPrompt = null;
+    }
+    
+    if (!this.nearChatbotRuinsEntrance || !this.player) return;
+    
+    const entrance = CHATBOT_RUINS_ENTRANCE;
+    
+    // Create prompt above the entrance
+    this.chatbotRuinsPrompt = this.add.container(
+      entrance.x + entrance.width / 2,
+      entrance.y - 40
+    );
+    this.chatbotRuinsPrompt.setDepth(200);
+    
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.85);
+    bg.fillRoundedRect(-70, -14, 140, 28, 6);
+    bg.lineStyle(1, 0x88ccff);
+    bg.strokeRoundedRect(-70, -14, 140, 28, 6);
+    
+    // Text
+    const text = this.add.text(0, -2, 'Press SPACE to enter', {
+      fontSize: '9px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    const nameText = this.add.text(0, 8, 'Chatbot Ruins - LLM Museum', {
+      fontSize: '8px',
+      color: '#88ccff',
+    }).setOrigin(0.5);
+    
+    this.chatbotRuinsPrompt.add([bg, text, nameText]);
+    
+    // Pulse animation
+    this.tweens.add({
+      targets: this.chatbotRuinsPrompt,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+  
+  /**
+   * Enter the Chatbot Ruins museum
+   */
+  private enterChatbotRuins(): void {
+    // Disable further input while transitioning
+    this.input.enabled = false;
+    
+    // Change room but keep connection alive
+    this.cleanupBeforeSceneChange('chatbotruins');
+    
+    // Update URL
+    window.history.pushState({}, '', '/chatbotruins');
+    
+    // Show retro transition via GameBridge
+    GameBridge.showTransition(
+      `/assets/sprites/${this.playerAvatar}.png`,
+      'Entering Chatbot Ruins...',
+      () => {
+        this.scene.start('chatbotruins-scene', {
+          fromTown: true,
+          playerAvatar: this.playerAvatar,
+          playerName: this.playerName,
+        });
+      }
+    );
   }
   
   /**
@@ -1157,6 +1481,12 @@ export class TownScene extends Scene {
       this.agentChatPrompt = null;
     }
     
+    // Chatbot Ruins prompt
+    if (this.chatbotRuinsPrompt) {
+      this.chatbotRuinsPrompt.destroy();
+      this.chatbotRuinsPrompt = null;
+    }
+    
     // Jitsi prompt
     this.hideJitsiPrompt();
     
@@ -1164,6 +1494,7 @@ export class TownScene extends Scene {
     this.nearbyDoor = null;
     this.nearbyAgent = null;
     this.nearMeetingRoomEntrance = false;
+    this.nearChatbotRuinsEntrance = false;
   }
   
   private updateJitsiUI(inCall: boolean, roomName?: string): void {
@@ -1771,6 +2102,12 @@ export class TownScene extends Scene {
       } else if (this.nearMeetingRoomEntrance) {
         console.log('[TownScene] Entering Meeting Rooms via SPACE key');
         this.enterMeetingRooms();
+      } else if (this.nearChatbotRuinsEntrance) {
+        console.log('[TownScene] Entering Chatbot Ruins via SPACE key');
+        this.enterChatbotRuins();
+      } else if (this.nearSlimShadyEntrance) {
+        console.log('[TownScene] Entering Slim Shady Room via SPACE key');
+        this.enterSlimShadyRoom();
       }
     });
     
@@ -1784,6 +2121,12 @@ export class TownScene extends Scene {
       } else if (this.nearMeetingRoomEntrance) {
         console.log('[TownScene] Entering Meeting Rooms via E key');
         this.enterMeetingRooms();
+      } else if (this.nearChatbotRuinsEntrance) {
+        console.log('[TownScene] Entering Chatbot Ruins via E key');
+        this.enterChatbotRuins();
+      } else if (this.nearSlimShadyEntrance) {
+        console.log('[TownScene] Entering Slim Shady Room via E key');
+        this.enterSlimShadyRoom();
       }
     });
     

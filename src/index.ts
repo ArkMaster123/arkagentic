@@ -4,6 +4,8 @@ import { CharacterSelectScene } from './scenes/CharacterSelectScene';
 import { TownScene } from './scenes/TownScene';
 import { RoomScene } from './scenes/RoomScene';
 import { MeetingRoomScene } from './scenes/MeetingRoomScene';
+import { ChatbotRuinsScene } from './scenes/ChatbotRuinsScene';
+import { SlimShadyScene } from './scenes/SlimShadyScene';
 import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin';
 import BoardPlugin from 'phaser3-rex-plugins/plugins/board-plugin';
 import { GameBridge } from './core';
@@ -51,6 +53,22 @@ type SceneData = RoomSceneData | MeetingRoomSceneData | undefined;
 // Parse current URL to determine starting scene
 function parseRoute(): { scene: string; data?: SceneData } {
   const path = window.location.pathname.toLowerCase();
+  
+  // Check for chatbotruins route
+  if (path === '/chatbotruins' || path === '/chatbotruins/') {
+    return {
+      scene: 'chatbotruins-scene',
+      data: { fromTown: false }
+    };
+  }
+  
+  // Check for slimshady secret room route
+  if (path === '/slimshady' || path === '/slimshady/') {
+    return {
+      scene: 'slimshady-scene',
+      data: { fromTown: false }
+    };
+  }
   
   // Check for room routes: /town/researchlab, /town/newsroom, /town/meetings, etc.
   const roomMatch = path.match(/^\/town\/([a-z]+)\/?$/);
@@ -103,6 +121,8 @@ function handleRouteChange() {
     game.scene.start('room-scene', route.data);
   } else if (route.scene === 'meeting-room-scene') {
     game.scene.start('meeting-room-scene', route.data || {});
+  } else if (route.scene === 'chatbotruins-scene') {
+    game.scene.start('chatbotruins-scene', route.data || {});
   } else {
     game.scene.start('town-scene');
   }
@@ -195,7 +215,7 @@ export const gameConfig: Types.Core.GameConfig = {
   audio: {
     disableWebAudio: false,
   },
-  scene: [LoadingScene, CharacterSelectScene, TownScene, RoomScene, MeetingRoomScene],
+  scene: [LoadingScene, CharacterSelectScene, TownScene, RoomScene, MeetingRoomScene, ChatbotRuinsScene, SlimShadyScene],
   dom: {
     createContainer: true,
   },
