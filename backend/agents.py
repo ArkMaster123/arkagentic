@@ -498,19 +498,49 @@ class AgentOrchestrator:
             }
 
         try:
+            # Enhance the query for swarm mode to get comprehensive responses
+            swarm_query = f"""[SWARM MODE - TEAM COLLABORATION REQUEST]
+
+The user has invoked /swarm mode, requesting ALL agents to collaborate on this task.
+This is NOT a casual chat - provide a thorough, detailed response by leveraging multiple perspectives.
+
+User's request: {query}
+
+Instructions for Maven (Coordinator):
+1. This is a /swarm request - provide a COMPREHENSIVE response (not short/casual)
+2. Consider which specialist agents would be helpful:
+   - Scout for research/discovery
+   - Sage for analysis/insights  
+   - Chronicle for documentation/writing
+   - Trends for current news/trends
+   - Gandalfius for business/freelancing advice
+3. Synthesize insights into a helpful, detailed response
+4. If appropriate, provide actionable steps or a structured answer
+
+Provide a thorough, helpful response to the user's request."""
+
             logger.info(f"Processing with swarm: {query[:50]}...")
-            result = self.swarm(query)
+            result = self.swarm(swarm_query)
 
             # Extract which agents participated
             agent_history: List[str] = []
             if hasattr(result, "node_history"):
                 agent_history = [node.node_id for node in result.node_history]
 
-            # Get the final response
-            response_text = str(result)
-
             # Determine which agent gave the final response
             final_agent = agent_history[-1] if agent_history else "maven"
+
+            # Get the final response text from the last agent's result
+            response_text = ""
+            if hasattr(result, "results") and final_agent in result.results:
+                node_result = result.results[final_agent]
+                if hasattr(node_result, "result"):
+                    # The AgentResult's __str__ method returns the text
+                    response_text = str(node_result.result)
+
+            # Fallback to str(result) if we couldn't extract the text
+            if not response_text:
+                response_text = str(result)
 
             logger.info(f"Swarm completed. Agents: {agent_history}")
 
