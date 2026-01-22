@@ -393,12 +393,12 @@ async def chat_stream(request: ChatRequest):
     """
     model_display = request.model_id or DEFAULT_MODEL
     logger.info(
-        f"Streaming chat request (model: {model_display}): '{request.message[:50]}...'"
+        f"Streaming chat request (model: {model_display}, swarm: {request.use_swarm}): '{request.message[:50]}...'"
     )
 
     async def generate():
         try:
-            orchestrator = get_orchestrator(use_swarm=False)
+            orchestrator = get_orchestrator(use_swarm=request.use_swarm)
 
             async for event in orchestrator.stream_query(
                 query=request.message,
