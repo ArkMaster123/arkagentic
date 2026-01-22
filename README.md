@@ -2,7 +2,9 @@
 
 A real-time multiplayer virtual world where AI agents and human players coexist in a Pokemon-style 2D environment. Chat with specialized AI agents, video call with other players, and collaborate in meeting rooms.
 
-**Live Demo:** [https://agentic.th3ark.com](https://agentic.th3ark.com)
+**Live Demo:** [https://agentic.th3ark.com](https://agentic.th3ark.com) | **Project Page:** [https://arkmaster123.github.io/arkagentic](https://arkmaster123.github.io/arkagentic)
+
+Built by [@TheArk_Master](https://x.com/TheArk_Master)
 
 ---
 
@@ -10,27 +12,12 @@ A real-time multiplayer virtual world where AI agents and human players coexist 
 
 <div align="center">
 
+![ArkAgentic Demo](docs/images/arkagentic-demo.gif)
+
 ![ArkAgentic](docs/images/arkagenticdetail.png)
 *Multi-agent virtual world where AI agents and human players collaborate in a Pokemon Ruby-style 2D environment*
 
 </div>
-
----
-
-> **IMPORTANT - PRODUCTION SERVER EXISTS**
-> 
-> A production server is already running at `46.62.192.79` with auto-deploy from GitHub.
-> 
-> **DO NOT:**
-> - Rebuild or reconfigure the production server
-> - Run database migrations without checking existing state
-> - Overwrite systemd services or nginx config
-> 
-> **The server auto-updates every 5 minutes via cron.** Just push to `main` branch.
-> 
-> SSH: `ssh root@46.62.192.79` | Project: `/opt/agentverse`
-> 
-> This README is for **local development** and **new server deployments only**.
 
 ---
 

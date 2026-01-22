@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArkAgentic - Where AI Agents Meet Humans</title>
+    <meta name="description" content="A multiplayer virtual world where AI agents and humans hang out together. No more boring Zoom calls.">
+    <meta name="author" content="@TheArk_Master">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="ArkAgentic - Where AI Agents Meet Humans">
+    <meta property="og:description" content="A multiplayer virtual world where AI agents and humans hang out together. No more boring Zoom calls.">
+    <meta property="og:image" content="images/arkagenticdetail.png">
+    <meta property="og:url" content="https://arkmaster123.github.io/arkagentic/">
+    <meta property="og:type" content="website">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:creator" content="@TheArk_Master">
+    <meta name="twitter:title" content="ArkAgentic - Where AI Agents Meet Humans">
+    <meta name="twitter:description" content="A multiplayer virtual world where AI agents and humans hang out together. No more boring Zoom calls.">
+    <meta name="twitter:image" content="images/arkagenticdetail.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-darkest: #0D1B33;
+            --bg-dark: #0F2140;
+            --bg-medium: #132850;
+            --accent: #e94560;
+            --accent-glow: rgba(233, 69, 96, 0.5);
+            --text-primary: #F8E8BE;
+            --text-muted: #A89F7F;
+            --text-white: #ffffff;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-darkest);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        /* Scanlines overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.1) 2px,
+                rgba(0, 0, 0, 0.1) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* Particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 20s infinite linear;
+        }
+        
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.3; }
+            90% { opacity: 0.3; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 80px 24px;
+        }
+        
+        .hero-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: var(--bg-medium);
+            border: 1px solid var(--accent);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--accent);
+            margin-bottom: 24px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .hero h1 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(24px, 5vw, 48px);
+            margin-bottom: 24px;
+            text-shadow: 0 0 40px var(--accent-glow);
+            line-height: 1.4;
+        }
+        
+        .hero h1 span {
+            color: var(--accent);
+        }
+        
+        .hero-subtitle {
+            font-size: clamp(18px, 3vw, 24px);
+            color: var(--text-muted);
+            max-width: 600px;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        
+        .demo-gif {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 12px;
+            border: 2px solid var(--bg-medium);
+            box-shadow: 0 0 60px var(--accent-glow);
+            margin-bottom: 40px;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: var(--text-white);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 40px var(--accent-glow);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-medium);
+            color: var(--text-primary);
+            border: 1px solid var(--text-muted);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        
+        /* Story Section */
+        .story {
+            padding: 120px 24px;
+            background: linear-gradient(180deg, var(--bg-darkest) 0%, var(--bg-dark) 100%);
+        }
+        
+        .story-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .story h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(18px, 3vw, 28px);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        
+        .story-card {
+            background: var(--bg-medium);
+            border-radius: 16px;
+            padding: 40px;
+            border: 1px solid rgba(233, 69, 96, 0.2);
+        }
+        
+        .story-card p {
+            font-size: 18px;
+            line-height: 1.8;
+            margin-bottom: 24px;
+            color: var(--text-primary);
+        }
+        
+        .story-card p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .story-card .highlight {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        .author {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .author-avatar {
+            width: 48px;
+            height: 48px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .author-info a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        .author-info a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Features Section */
+        .features {
+            padding: 120px 24px;
+        }
+        
+        .features h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(18px, 3vw, 28px);
+            margin-bottom: 60px;
+            text-align: center;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .feature-card {
+            background: var(--bg-dark);
+            border-radius: 16px;
+            padding: 32px;
+            border: 1px solid var(--bg-medium);
+            transition: all 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .feature-icon {
+            font-size: 40px;
+            margin-bottom: 16px;
+        }
+        
+        .feature-card h3 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: var(--text-white);
+        }
+        
+        .feature-card p {
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+        
+        /* Agents Section */
+        .agents {
+            padding: 120px 24px;
+            background: var(--bg-dark);
+        }
+        
+        .agents h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(18px, 3vw, 28px);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .agents-subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: 60px;
+            font-size: 18px;
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .agent-card {
+            background: var(--bg-medium);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .agent-card:hover {
+            border-color: var(--accent);
+        }
+        
+        .agent-sprite {
+            width: 64px;
+            height: 64px;
+            image-rendering: pixelated;
+            background-size: cover;
+        }
+        
+        .agent-info h4 {
+            font-size: 18px;
+            margin-bottom: 4px;
+            color: var(--accent);
+        }
+        
+        .agent-info p {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
+        /* Tech Stack */
+        .tech {
+            padding: 120px 24px;
+        }
+        
+        .tech h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(18px, 3vw, 28px);
+            margin-bottom: 60px;
+            text-align: center;
+        }
+        
+        .tech-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 16px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .tech-badge {
+            background: var(--bg-dark);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            border: 1px solid var(--bg-medium);
+        }
+        
+        /* CTA Section */
+        .cta {
+            padding: 120px 24px;
+            text-align: center;
+            background: linear-gradient(180deg, var(--bg-darkest) 0%, var(--bg-dark) 100%);
+        }
+        
+        .cta h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(20px, 4vw, 36px);
+            margin-bottom: 24px;
+            text-shadow: 0 0 40px var(--accent-glow);
+        }
+        
+        .cta p {
+            font-size: 20px;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+        
+        /* Footer */
+        footer {
+            padding: 40px 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+            
+            .story-card {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Particles Background -->
+    <div class="particles">
+        <script>
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                document.querySelector('.particles').appendChild(particle);
+            }
+        </script>
+    </div>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <span class="hero-badge">Open Source</span>
+            <h1>Where <span>AI Agents</span><br>Meet Humans</h1>
+            <p class="hero-subtitle">
+                A multiplayer virtual world where you can hang out with friends and AI agents in a Pokemon-style 2D environment. No more boring Zoom calls.
+            </p>
+            <video autoplay loop muted playsinline class="demo-gif">
+                <source src="images/arkagentic-demo.mp4" type="video/mp4">
+                <img src="images/arkagentic-demo.gif" alt="ArkAgentic Demo">
+            </video>
+            <div class="cta-buttons">
+                <a href="https://agentic.th3ark.com" class="btn btn-primary">
+                    Play Now
+                </a>
+                <a href="https://github.com/ArkMaster123/arkagentic" class="btn btn-secondary">
+                    View on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Story Section -->
+    <section class="story">
+        <div class="container">
+            <div class="story-content">
+                <h2>Why I Built This</h2>
+                <div class="story-card">
+                    <p>
+                        I was <span class="highlight">tired of boring virtual meetings</span>. Zoom calls, Google Meet, Teams... they all feel the same. Staring at a grid of faces, waiting for your turn to unmute. It's exhausting.
+                    </p>
+                    <p>
+                        I wanted a <span class="highlight">cool place to hang out with online friends</span> that feels more like being together, even when we're not physically in the same room.
+                    </p>
+                    <p>
+                        So I built ArkAgentic - a virtual world where you can <span class="highlight">walk around, bump into AI agents, and video chat</span> with friends when you're in the same room. It's like the metaverse, but actually fun and useful.
+                    </p>
+                    <p>
+                        The AI agents aren't just chatbots. They're <span class="highlight">specialists you can consult</span> - a research agent, a strategy analyst, a writing editor, and more. Walk up to them, have a conversation, get real help.
+                    </p>
+                    <div class="author">
+                        <div class="author-avatar">A</div>
+                        <div class="author-info">
+                            <strong>Built by</strong><br>
+                            <a href="https://x.com/TheArk_Master" target="_blank">@TheArk_Master</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <h2>What You Can Do</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎮</div>
+                    <h3>Explore a Virtual World</h3>
+                    <p>Walk around a Pokemon Ruby-style 2D world. Enter buildings, discover meeting rooms, and find AI agents to chat with.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>Chat with AI Agents</h3>
+                    <p>Six specialized AI agents with real expertise. Get research help, strategic advice, writing assistance, and more.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📹</div>
+                    <h3>Video Call in Meeting Rooms</h3>
+                    <p>Walk into a meeting room and instantly video chat with anyone else in the room. Powered by Jitsi.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <h3>See Other Players</h3>
+                    <p>Real-time multiplayer. See other players walking around, chat with them, and collaborate together.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3>Chat Bubbles</h3>
+                    <p>Messages appear as chat bubbles above players. It feels like actually being in a space together.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔓</div>
+                    <h3>Open Source</h3>
+                    <p>Deploy your own instance. Customize the world. Add your own AI agents. It's all open source.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agents Section -->
+    <section class="agents">
+        <div class="container">
+            <h2>Meet the AI Agents</h2>
+            <p class="agents-subtitle">Walk up to any agent and start a conversation</p>
+            <div class="agents-grid">
+                <div class="agent-card">
+                    <div class="agent-info">
+                        <h4>Scout</h4>
+                        <p>Research Specialist - Company research, prospect identification, people finding</p>
+                    </div>
+                </div>
+                <div class="agent-card">
+                    <div class="agent-info">
+                        <h4>Sage</h4>
+                        <p>Strategic Analyst - Data analysis, comparisons, strategic recommendations</p>
+                    </div>
+                </div>
+                <div class="agent-card">
+                    <div class="agent-info">
+                        <h4>Chronicle</h4>
+                        <p>Newsroom Editor - Article writing, news summaries, content creation</p>
+                    </div>
+                </div>
+                <div class="agent-card">
+                    <div class="agent-info">
+                        <h4>Trends</h4>
+                        <p>Intelligence Analyst - Trending topics, breaking news, market movements</p>
+                    </div>
+                </div>
+                <div class="agent-card">
+                    <div class="agent-info">
+                        <h4>Maven</h4>
+                        <p>General Assistant - General queries, coordination, friendly help</p>
+                    </div>
+                </div>
+                <div class="agent-card">
+                    <div class="agent-info">
+                        <h4>Gandalfius</h4>
+                        <p>Freelancing Wizard - Pricing strategies, client communication, scope management</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="tech">
+        <div class="container">
+            <h2>Built With</h2>
+            <div class="tech-grid">
+                <span class="tech-badge">Phaser 3</span>
+                <span class="tech-badge">TypeScript</span>
+                <span class="tech-badge">Colyseus</span>
+                <span class="tech-badge">FastAPI</span>
+                <span class="tech-badge">PostgreSQL</span>
+                <span class="tech-badge">Strands Agents</span>
+                <span class="tech-badge">OpenRouter</span>
+                <span class="tech-badge">Jitsi Meet</span>
+                <span class="tech-badge">Vite</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <h2>Join the Adventure</h2>
+            <p>No more boring meetings. Just fun.</p>
+            <div class="cta-buttons">
+                <a href="https://agentic.th3ark.com" class="btn btn-primary">
+                    Play Now - It's Free
+                </a>
+                <a href="https://github.com/ArkMaster123/arkagentic" class="btn btn-secondary">
+                    Star on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>
+                Made with ❤️ by <a href="https://x.com/TheArk_Master" target="_blank">@TheArk_Master</a>
+                &nbsp;|&nbsp;
+                <a href="https://github.com/ArkMaster123/arkagentic" target="_blank">GitHub</a>
+                &nbsp;|&nbsp;
+                <a href="https://agentic.th3ark.com" target="_blank">Play Now</a>
+            </p>
+            <p style="margin-top: 16px; opacity: 0.6;">
+                Open Source under MIT License
+            </p>
+        </div>
+    </footer>
+</body>
+</html>
