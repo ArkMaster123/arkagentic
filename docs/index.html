@@ -156,7 +156,51 @@
             border-radius: 12px;
             border: 2px solid var(--bg-medium);
             box-shadow: 0 0 60px var(--accent-glow);
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
             margin-bottom: 40px;
+        }
+        
+        .video-unmute {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: rgba(233, 69, 96, 0.9);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: pulse-btn 2s infinite;
+        }
+        
+        .video-unmute:hover {
+            background: var(--accent);
+            transform: scale(1.05);
+        }
+        
+        .video-unmute.hidden {
+            display: none;
+        }
+        
+        .video-unmute svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        @keyframes pulse-btn {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(233, 69, 96, 0); }
         }
         
         .cta-buttons {
@@ -306,8 +350,22 @@
         }
         
         .feature-icon {
-            font-size: 40px;
+            width: 48px;
+            height: 48px;
             margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-medium);
+            border-radius: 12px;
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+        
+        .feature-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--accent);
         }
         
         .feature-card h3 {
@@ -448,6 +506,76 @@
             text-decoration: underline;
         }
         
+        /* Video Controls */
+        .video-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(13, 27, 51, 0.95);
+            border-radius: 0 0 12px 12px;
+            border: 2px solid var(--bg-medium);
+            border-top: none;
+        }
+        
+        .control-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        
+        .control-btn:hover {
+            background: var(--bg-medium);
+            color: var(--accent);
+        }
+        
+        .control-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .control-btn .hidden {
+            display: none;
+        }
+        
+        .progress-container {
+            flex: 1;
+            height: 8px;
+            background: var(--bg-medium);
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.1s linear;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        
+        .progress-container:hover .progress-bar {
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+        
+        .time-display {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'Inter', monospace;
+            min-width: 85px;
+            text-align: center;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .cta-buttons {
@@ -490,10 +618,26 @@
             <p class="hero-subtitle">
                 A multiplayer virtual world where you can hang out with friends and AI agents in a Pokemon-style 2D environment. No more boring Zoom calls.
             </p>
-            <video autoplay loop muted playsinline class="demo-gif">
-                <source src="images/arkagentic-demo.mp4" type="video/mp4">
-                <img src="images/arkagentic-demo.gif" alt="ArkAgentic Demo">
-            </video>
+            <div class="video-container">
+                <video id="demo-video" autoplay loop muted playsinline class="demo-gif">
+                    <source src="images/arkagentic-demo.mp4" type="video/mp4">
+                    <img src="images/arkagentic-demo.gif" alt="ArkAgentic Demo">
+                </video>
+                <div class="video-controls">
+                    <button class="control-btn" id="play-pause-btn" aria-label="Play/Pause">
+                        <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                        <svg class="icon-play hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                    <div class="progress-container" id="progress-container">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <span class="time-display" id="time-display">0:00 / 0:00</span>
+                    <button class="control-btn" id="mute-btn" aria-label="Mute/Unmute">
+                        <svg class="icon-muted" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                        <svg class="icon-unmuted hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    </button>
+                </div>
+            </div>
             <div class="cta-buttons">
                 <a href="https://agentic.th3ark.com" class="btn btn-primary">
                     Play Now
@@ -541,32 +685,44 @@
             <h2>What You Can Do</h2>
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">🎮</div>
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+                    </div>
                     <h3>Explore a Virtual World</h3>
                     <p>Walk around a Pokemon Ruby-style 2D world. Enter buildings, discover meeting rooms, and find AI agents to chat with.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🤖</div>
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24"><path d="M21 10.12h-6.78l2.74-2.82c-2.73-2.7-7.15-2.8-9.88-.1-2.73 2.71-2.73 7.08 0 9.79s7.15 2.71 9.88 0C18.32 15.65 19 14.08 19 12.1h2c0 1.98-.88 4.55-2.64 6.29-3.51 3.48-9.21 3.48-12.72 0-3.5-3.47-3.53-9.11-.02-12.58s9.14-3.47 12.65 0L21 3v7.12zM12.5 8v4.25l3.5 2.08-.72 1.21L11 13V8h1.5z"/></svg>
+                    </div>
                     <h3>Chat with AI Agents</h3>
                     <p>Six specialized AI agents with real expertise. Get research help, strategic advice, writing assistance, and more.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">📹</div>
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                    </div>
                     <h3>Video Call in Meeting Rooms</h3>
                     <p>Walk into a meeting room and instantly video chat with anyone else in the room. Powered by Jitsi.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">👥</div>
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                    </div>
                     <h3>See Other Players</h3>
                     <p>Real-time multiplayer. See other players walking around, chat with them, and collaborate together.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">💬</div>
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+                    </div>
                     <h3>Chat Bubbles</h3>
                     <p>Messages appear as chat bubbles above players. It feels like actually being in a space together.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🔓</div>
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+                    </div>
                     <h3>Open Source</h3>
                     <p>Deploy your own instance. Customize the world. Add your own AI agents. It's all open source.</p>
                 </div>
@@ -669,5 +825,122 @@
             </p>
         </div>
     </footer>
+
+    <!-- Video Controls Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('demo-video');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const muteBtn = document.getElementById('mute-btn');
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const timeDisplay = document.getElementById('time-display');
+            
+            const iconPlay = playPauseBtn.querySelector('.icon-play');
+            const iconPause = playPauseBtn.querySelector('.icon-pause');
+            const iconMuted = muteBtn.querySelector('.icon-muted');
+            const iconUnmuted = muteBtn.querySelector('.icon-unmuted');
+            
+            // Format time as M:SS
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return mins + ':' + (secs < 10 ? '0' : '') + secs;
+            }
+            
+            // Update time display
+            function updateTime() {
+                const current = formatTime(video.currentTime);
+                const duration = formatTime(video.duration || 0);
+                timeDisplay.textContent = current + ' / ' + duration;
+            }
+            
+            // Update progress bar
+            function updateProgress() {
+                if (video.duration) {
+                    const percent = (video.currentTime / video.duration) * 100;
+                    progressBar.style.width = percent + '%';
+                }
+                updateTime();
+            }
+            
+            // Play/Pause toggle
+            playPauseBtn.addEventListener('click', function() {
+                if (video.paused) {
+                    video.play();
+                } else {
+                    video.pause();
+                }
+            });
+            
+            // Update play/pause icons
+            video.addEventListener('play', function() {
+                iconPlay.classList.add('hidden');
+                iconPause.classList.remove('hidden');
+            });
+            
+            video.addEventListener('pause', function() {
+                iconPlay.classList.remove('hidden');
+                iconPause.classList.add('hidden');
+            });
+            
+            // Mute toggle
+            muteBtn.addEventListener('click', function() {
+                video.muted = !video.muted;
+            });
+            
+            // Update mute icons
+            video.addEventListener('volumechange', function() {
+                if (video.muted) {
+                    iconMuted.classList.remove('hidden');
+                    iconUnmuted.classList.add('hidden');
+                } else {
+                    iconMuted.classList.add('hidden');
+                    iconUnmuted.classList.remove('hidden');
+                }
+            });
+            
+            // Progress updates
+            video.addEventListener('timeupdate', updateProgress);
+            video.addEventListener('loadedmetadata', updateTime);
+            
+            // Click to seek
+            progressContainer.addEventListener('click', function(e) {
+                const rect = progressContainer.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const percent = clickX / rect.width;
+                video.currentTime = percent * video.duration;
+            });
+            
+            // Drag to seek
+            let isDragging = false;
+            
+            progressContainer.addEventListener('mousedown', function(e) {
+                isDragging = true;
+                seek(e);
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (isDragging) {
+                    seek(e);
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isDragging = false;
+            });
+            
+            function seek(e) {
+                const rect = progressContainer.getBoundingClientRect();
+                let clickX = e.clientX - rect.left;
+                clickX = Math.max(0, Math.min(clickX, rect.width));
+                const percent = clickX / rect.width;
+                video.currentTime = percent * video.duration;
+            }
+            
+            // Initialize
+            updateTime();
+        });
+    </script>
 </body>
 </html>
