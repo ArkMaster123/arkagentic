@@ -18,6 +18,9 @@ export enum GameEvent {
   AGENT_MOVE_TO = 'agent:moveTo',
   AGENT_ARRIVED = 'agent:arrived',
   AGENT_DIRECTION_CHANGE = 'agent:directionChange',
+  AGENTS_GATHER = 'agents:gather',
+  AGENTS_WORKING = 'agents:working',
+  AGENTS_DISPERSE = 'agents:disperse',
   
   // Chat events
   CHAT_MESSAGE_SENT = 'chat:messageSent',
@@ -70,6 +73,9 @@ export interface EventPayloads {
   [GameEvent.AGENT_MOVE_TO]: { agentId: string; x: number; y: number };
   [GameEvent.AGENT_ARRIVED]: { agentId: string };
   [GameEvent.AGENT_DIRECTION_CHANGE]: { agentId: string; direction: number };
+  [GameEvent.AGENTS_GATHER]: { agentTypes: string[]; centerX: number; centerY: number };
+  [GameEvent.AGENTS_WORKING]: { agentTypes: string[]; task?: string };
+  [GameEvent.AGENTS_DISPERSE]: Record<string, never>;
   
   // Chat events
   [GameEvent.CHAT_MESSAGE_SENT]: { message: string; agentType?: string };

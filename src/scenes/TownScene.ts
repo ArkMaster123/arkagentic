@@ -39,10 +39,10 @@ const CHATBOT_RUINS_ENTRANCE = {
 const SLIM_SHADY_ENTRANCE = {
   name: 'Slim Shady Room',
   description: '???',
-  x: 720,      // Far right, behind trees/buildings
-  y: 400,      // Bottom area
-  width: 32,
-  height: 32,
+  x: 450,      // Right side of walkable area (agents go up to ~420)
+  y: 340,      // Bottom area of walkable zone
+  width: 40,
+  height: 40,
 };
 
 interface ConversationMessage {
@@ -910,29 +910,29 @@ export class TownScene extends Scene {
   private createSlimShadyHint(): void {
     const entrance = SLIM_SHADY_ENTRANCE;
     
-    // Create a very subtle, barely visible floor marking
-    // Players who explore carefully might notice it
+    // Create a visible but mysterious floor marking
     const hint = this.add.graphics();
-    hint.fillStyle(0xff00ff, 0.05); // Very faint magenta
+    hint.fillStyle(0xff00ff, 0.15); // More visible magenta glow
     hint.fillRect(entrance.x, entrance.y, entrance.width, entrance.height);
     hint.setDepth(1);
     
-    // Add a tiny, mysterious symbol that's easy to miss
+    // Add a mysterious symbol
     const mysteryText = this.add.text(
       entrance.x + entrance.width / 2,
       entrance.y + entrance.height / 2,
       '?',
       {
-        fontSize: '8px',
+        fontSize: '12px',
         color: '#ff00ff',
+        fontStyle: 'bold',
       }
-    ).setOrigin(0.5).setAlpha(0.3).setDepth(2);
+    ).setOrigin(0.5).setAlpha(0.6).setDepth(2);
     
-    // Very slow, subtle pulse
+    // Pulsing animation to draw attention
     this.tweens.add({
       targets: [hint, mysteryText],
-      alpha: { from: 0.2, to: 0.4 },
-      duration: 2000,
+      alpha: { from: 0.3, to: 0.7 },
+      duration: 1500,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
@@ -1378,6 +1378,221 @@ export class TownScene extends Scene {
     agent.speak(greetings[Math.floor(Math.random() * greetings.length)]);
   }
   
+  // ========== Agent Collaboration / Working Together Animation ==========
+  
+  // Track agents currently in workspace mode
+  private workspaceAgents: Set<string> = new Set();
+  private workspaceCenter: { x: number; y: number } | null = null;
+  private workspaceEffects: Phaser.GameObjects.Container | null = null;
+  
+  /**
+   * Summon specific agents to gather around a central point and work together
+   * @param agentTypes Array of agent types to summon (e.g., ['scout', 'sage', 'chronicle'])
+   * @param centerX World X coordinate for gathering point (defaults to player position)
+   * @param centerY World Y coordinate for gathering point (defaults to player position)
+   */
+  public summonAgentsToWorkspace(
+    agentTypes: string[],
+    centerX?: number,
+    centerY?: number
+  ): void {
+    // Use player position if not specified
+    const center = {
+      x: centerX ?? this.player?.x ?? MEETING_POINT.x,
+      y: centerY ?? this.player?.y ?? MEETING_POINT.y,
+    };
+    
+    this.workspaceCenter = center;
+    console.log(`[TownScene] Summoning agents to workspace at (${center.x}, ${center.y}):`, agentTypes);
+    
+    // Calculate positions in a circle around the center
+    const radius = 40; // Distance from center
+    const positions = this.calculateCirclePositions(center.x, center.y, radius, agentTypes.length);
+    
+    // Summon each agent
+    agentTypes.forEach((agentType, index) => {
+      const agent = this.agents.get(agentType);
+      if (!agent) {
+        console.warn(`[TownScene] Agent not found: ${agentType}`);
+        return;
+      }
+      
+      const targetPos = positions[index];
+      
+      // Summon agent (stops wandering)
+      agent.summon();
+      
+      // Move to workspace position
+      agent.moveToWorld(targetPos.x, targetPos.y);
+      
+      // Track this agent as being in workspace
+      this.workspaceAgents.add(agentType);
+      
+      // Listen for arrival to show working indicator
+      const arrivedHandler = () => {
+        // Face toward center
+        const dx = center.x - agent.x;
+        const dy = center.y - agent.y;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          agent.changeDirection(dx > 0 ? DIRECTION.RIGHT : DIRECTION.LEFT);
+        } else {
+          agent.changeDirection(dy > 0 ? DIRECTION.DOWN : DIRECTION.UP);
+        }
+        
+        // Show working indicator
+        agent.showWorkingIndicator();
+        
+        eventsCenter.off(`${agent.id}-arrived`, arrivedHandler);
+      };
+      
+      eventsCenter.on(`${agent.id}-arrived`, arrivedHandler);
+    });
+    
+    // Create workspace visual effects
+    this.createWorkspaceEffects(center.x, center.y, agentTypes.length);
+  }
+  
+  /**
+   * Have all workspace agents start their "working" animation
+   * Call this when agents are actively processing a task
+   */
+  public startAgentsWorking(task?: string): void {
+    console.log('[TownScene] Agents starting work:', Array.from(this.workspaceAgents));
+    
+    this.workspaceAgents.forEach((agentType) => {
+      const agent = this.agents.get(agentType);
+      if (agent) {
+        agent.showWorkingIndicator(task);
+      }
+    });
+  }
+  
+  /**
+   * Stop working animation and disperse agents back to their home positions
+   */
+  public disperseAgents(): void {
+    console.log('[TownScene] Dispersing agents from workspace');
+    
+    this.workspaceAgents.forEach((agentType) => {
+      const agent = this.agents.get(agentType);
+      if (agent) {
+        // Hide working indicator
+        agent.hideWorkingIndicator();
+        
+        // Release agent (returns home and resumes wandering)
+        agent.release();
+      }
+    });
+    
+    // Clear workspace state
+    this.workspaceAgents.clear();
+    this.workspaceCenter = null;
+    
+    // Clean up visual effects
+    this.destroyWorkspaceEffects();
+  }
+  
+  /**
+   * Calculate evenly-spaced positions in a circle
+   */
+  private calculateCirclePositions(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    count: number
+  ): { x: number; y: number }[] {
+    const positions: { x: number; y: number }[] = [];
+    const angleStep = (Math.PI * 2) / count;
+    const startAngle = -Math.PI / 2; // Start from top
+    
+    for (let i = 0; i < count; i++) {
+      const angle = startAngle + angleStep * i;
+      positions.push({
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
+      });
+    }
+    
+    return positions;
+  }
+  
+  /**
+   * Create visual effects for the workspace area
+   */
+  private createWorkspaceEffects(centerX: number, centerY: number, agentCount: number): void {
+    this.destroyWorkspaceEffects();
+    
+    this.workspaceEffects = this.add.container(centerX, centerY);
+    this.workspaceEffects.setDepth(5);
+    
+    // Glowing circle on the ground
+    const groundGlow = this.add.graphics();
+    groundGlow.fillStyle(0x4a90d9, 0.15);
+    groundGlow.fillCircle(0, 0, 50);
+    groundGlow.lineStyle(2, 0x4a90d9, 0.3);
+    groundGlow.strokeCircle(0, 0, 50);
+    
+    // Inner circle
+    groundGlow.fillStyle(0x4a90d9, 0.1);
+    groundGlow.fillCircle(0, 0, 30);
+    
+    // Center icon (collaboration symbol)
+    const centerIcon = this.add.text(0, 0, '+', {
+      fontSize: '16px',
+      fontStyle: 'bold',
+      color: '#4a90d9',
+    }).setOrigin(0.5);
+    
+    this.workspaceEffects.add([groundGlow, centerIcon]);
+    
+    // Pulse animation
+    this.tweens.add({
+      targets: this.workspaceEffects,
+      scaleX: 1.05,
+      scaleY: 1.05,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    
+    // Rotate the center icon
+    this.tweens.add({
+      targets: centerIcon,
+      angle: 360,
+      duration: 4000,
+      repeat: -1,
+      ease: 'Linear',
+    });
+  }
+  
+  /**
+   * Clean up workspace visual effects
+   */
+  private destroyWorkspaceEffects(): void {
+    if (this.workspaceEffects) {
+      this.tweens.killTweensOf(this.workspaceEffects);
+      const children = this.workspaceEffects.getAll();
+      children.forEach(child => this.tweens.killTweensOf(child));
+      this.workspaceEffects.destroy();
+      this.workspaceEffects = null;
+    }
+  }
+  
+  /**
+   * Get an agent by type
+   */
+  public getAgent(agentType: string): Agent | undefined {
+    return this.agents.get(agentType);
+  }
+  
+  /**
+   * Get all agents
+   */
+  public getAllAgents(): Map<string, Agent> {
+    return this.agents;
+  }
+  
   /**
    * Cleanup before transitioning to another scene
    * Keeps multiplayer connection alive but cleans up scene-specific resources
@@ -1642,6 +1857,26 @@ export class TownScene extends Scene {
     // Clear input
     chatInput.value = '';
     
+    // Check for /swarm command - triggers full team collaboration
+    if (query.toLowerCase().startsWith('/swarm ')) {
+      const actualQuery = query.slice(7).trim();
+      if (actualQuery) {
+        this.addChatMessage('user', query);
+        this.processSwarmQuery(actualQuery);
+        return;
+      }
+    }
+    
+    // Check for /team alias (same as /swarm)
+    if (query.toLowerCase().startsWith('/team ')) {
+      const actualQuery = query.slice(6).trim();
+      if (actualQuery) {
+        this.addChatMessage('user', query);
+        this.processSwarmQuery(actualQuery);
+        return;
+      }
+    }
+    
     // Add user message to chat
     this.addChatMessage('user', query);
     
@@ -1752,22 +1987,20 @@ export class TownScene extends Scene {
     const iconSpan = mainAgentConfig ? getIconSpan(mainAgentConfig.emoji, 12) : '';
     this.updateChatStatus(`${iconSpan} ${mainAgentConfig?.name || 'Agent'} is thinking...`);
 
-    // Phase 1: Main agent shows typing indicator (animated "...")
-    const mainAgent = this.agents.get(mainAgentType);
-    if (mainAgent) {
-      mainAgent.showTypingIndicator();
-    }
+    // Phase 1: Summon ALL relevant agents to surround the player (swarm mode)
+    // Use player position so agents gather around the user like a team huddle
+    const playerX = this.player?.x ?? MEETING_POINT.x;
+    const playerY = this.player?.y ?? MEETING_POINT.y;
+    this.summonAgentsToWorkspace(relevantAgents, playerX, playerY);
     
-    // Other agents show thought bubbles
-    relevantAgents.slice(1).forEach((agentType) => {
+    // Phase 2: Show animated "..." typing indicator on ALL agents in the swarm
+    // This creates the visual effect of the whole team thinking together
+    relevantAgents.forEach((agentType) => {
       const agent = this.agents.get(agentType);
       if (agent) {
-        eventsCenter.emit(`${agentType}-think`, 'Thinking...');
+        agent.showTypingIndicator();
       }
     });
-
-    // Phase 2: Move relevant agents to meeting point
-    await this.moveAgentsToMeeting(relevantAgents);
 
     // Phase 3: Show typing indicator in chat
     this.showTypingIndicator();
@@ -1800,12 +2033,17 @@ export class TownScene extends Scene {
         });
       }
       
-      // Phase 6: Hide typing indicator (response shown in sidebar chat, not game bubble)
+      // Phase 6: Hide typing indicators on ALL swarm agents
+      relevantAgents.forEach((agentType) => {
+        const agent = this.agents.get(agentType);
+        if (agent) {
+          agent.hideTypingIndicator();
+        }
+      });
+      
+      // The responding agent delivers the final response in chat
       const respondingAgent = this.agents.get(result.agent);
       if (respondingAgent) {
-        // Hide the typing indicator now that response is complete
-        respondingAgent.hideTypingIndicator();
-        
         // Note: Chat message is already added by streaming in callAgentAPI
         // Only add if fallback was used (no streaming message exists)
         const existingStreamingMsg = document.querySelector('.chat-message.agent:last-child .streaming-content');
@@ -1824,11 +2062,16 @@ export class TownScene extends Scene {
       console.error('API Error:', error);
       this.removeTypingIndicator();
       
-      // Hide typing indicator on error
-      const mainAgent = this.agents.get(mainAgentType);
-      if (mainAgent) {
-        mainAgent.hideTypingIndicator();
-      }
+      // Hide typing indicators on ALL swarm agents on error
+      relevantAgents.forEach((agentType) => {
+        const agent = this.agents.get(agentType);
+        if (agent) {
+          agent.hideTypingIndicator();
+        }
+      });
+      
+      // Disperse agents immediately on error
+      this.disperseAgents();
       
       const errorMessage = 'Sorry, I encountered an error processing your request.';
       this.addChatMessage('agent', errorMessage, mainAgentType);
@@ -1840,8 +2083,253 @@ export class TownScene extends Scene {
     this.isProcessing = false;
     
     this.time.delayedCall(8000, () => {
-      this.returnAgentsToPositions();
+      this.disperseAgents();
     });
+  }
+
+  /**
+   * Process a swarm query - ALL 6 agents collaborate together
+   * Triggered by /swarm or /team command
+   */
+  private async processSwarmQuery(query: string): Promise<void> {
+    this.isProcessing = true;
+    this.setChatInputEnabled(false);
+    
+    // Add to conversation history
+    this.conversationHistory.push({ role: 'user', content: query });
+
+    // Get ALL 6 agent types for full team collaboration
+    const allAgentTypes = Object.keys(AGENTS);
+    
+    // Maven coordinates the swarm response
+    const mavenConfig = AGENTS['maven' as keyof typeof AGENTS];
+    const mavenIcon = mavenConfig ? getIconSpan(mavenConfig.emoji, 12) : '';
+    
+    this.updateChatStatus('🤝 Gathering the team...');
+
+    // Phase 1: Summon ALL 6 agents to surround the player
+    const playerX = this.player?.x ?? MEETING_POINT.x;
+    const playerY = this.player?.y ?? MEETING_POINT.y;
+    this.summonAgentsToWorkspace(allAgentTypes, playerX, playerY);
+    
+    // Wait a moment for agents to start gathering
+    await new Promise(resolve => this.time.delayedCall(1500, resolve));
+    
+    // Phase 2: Show animated "..." typing indicator on ALL agents
+    allAgentTypes.forEach((agentType) => {
+      const agent = this.agents.get(agentType);
+      if (agent) {
+        agent.showTypingIndicator();
+      }
+    });
+
+    // Phase 3: Show typing indicator in chat
+    this.showTypingIndicator();
+    this.updateChatStatus('🤝 Team is collaborating...');
+
+    // Phase 4: Call the API with swarm mode enabled
+    try {
+      const result = await this.callSwarmAPI(query);
+      
+      // Phase 5: Hide typing indicators on ALL agents
+      allAgentTypes.forEach((agentType) => {
+        const agent = this.agents.get(agentType);
+        if (agent) {
+          agent.hideTypingIndicator();
+        }
+      });
+      
+      // Phase 6: Maven delivers the synthesized response
+      const maven = this.agents.get('maven');
+      if (maven) {
+        maven.speak('Here\'s what we found!');
+      }
+      
+      // Show handoffs if multiple agents collaborated
+      if (result.handoffs && result.handoffs.length > 1) {
+        const handoffNames = result.handoffs.map(h => {
+          const config = AGENTS[h as keyof typeof AGENTS];
+          const iconSpan = config ? getIconSpan(config.emoji, 12) : '';
+          return config ? `${iconSpan} ${config.name}` : h;
+        }).join(' → ');
+        this.updateChatStatus(`🤝 Collaborated: ${handoffNames}`);
+        
+        // Show brief speech bubble on each agent in handoff chain
+        result.handoffs.forEach((agentType, index) => {
+          const agent = this.agents.get(agentType);
+          if (agent && index < result.handoffs.length - 1) {
+            this.time.delayedCall(index * 600, () => {
+              agent.think('Contributing...');
+            });
+          }
+        });
+      }
+
+      this.conversationHistory.push({
+        role: 'assistant',
+        content: result.response || 'No response',
+        agent: 'maven',
+      });
+
+    } catch (error) {
+      console.error('Swarm API Error:', error);
+      this.removeTypingIndicator();
+      
+      // Hide typing indicators on ALL agents on error
+      allAgentTypes.forEach((agentType) => {
+        const agent = this.agents.get(agentType);
+        if (agent) {
+          agent.hideTypingIndicator();
+        }
+      });
+      
+      // Disperse agents immediately on error
+      this.disperseAgents();
+      
+      const errorMessage = 'Sorry, the team encountered an error collaborating on your request.';
+      this.addChatMessage('agent', errorMessage, 'maven');
+    }
+
+    // Phase 7: Return agents to original positions after delay
+    this.updateChatStatus('Ready');
+    this.setChatInputEnabled(true);
+    this.isProcessing = false;
+    
+    this.time.delayedCall(10000, () => {
+      this.disperseAgents();
+    });
+  }
+
+  /**
+   * Call the API with swarm mode enabled - all agents collaborate
+   */
+  private async callSwarmAPI(query: string): Promise<{
+    response: string;
+    agent: string;
+    handoffs: string[];
+  }> {
+    try {
+      // Get user's preferred AI model
+      const userModel = GameBridge.userPreferredModel;
+      
+      // Use streaming endpoint with swarm mode enabled
+      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: query,
+          agent: 'maven',      // Maven coordinates the swarm
+          use_swarm: true,     // Enable full team collaboration
+          model_id: userModel,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+      let respondingAgent = 'maven';
+      let handoffs: string[] = ['maven'];
+      
+      // Get the chat messages container for streaming updates
+      const chatMessages = document.getElementById('chat-messages');
+      let streamingMessageDiv: HTMLElement | null = null;
+      
+      // Create a streaming message bubble (Maven delivers)
+      if (chatMessages) {
+        // Remove typing indicator first
+        this.removeTypingIndicator();
+        
+        const mavenConfig = AGENTS['maven' as keyof typeof AGENTS];
+        const iconSpan = mavenConfig ? getIconSpan(mavenConfig.emoji, 14) : '';
+        const agentName = `${iconSpan} ${escapeHtml(mavenConfig.name)} (Team Response)`;
+        const now = new Date();
+        const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        streamingMessageDiv = document.createElement('div');
+        streamingMessageDiv.className = 'chat-message agent streaming swarm-response';
+        streamingMessageDiv.innerHTML = `
+          <div class="agent-name">${agentName}</div>
+          <div class="bubble">
+            <p class="streaming-content"></p>
+          </div>
+          <div class="timestamp">${timestamp}</div>
+        `;
+        chatMessages.appendChild(streamingMessageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+      
+      const streamingContent = streamingMessageDiv?.querySelector('.streaming-content');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'chunk' && data.data) {
+                fullResponse += data.data;
+                
+                // Update streaming message in real-time
+                if (streamingContent) {
+                  streamingContent.textContent = fullResponse;
+                  chatMessages!.scrollTop = chatMessages!.scrollHeight;
+                }
+              } else if (data.type === 'start') {
+                respondingAgent = data.agent || 'maven';
+                console.log(`[Swarm Stream] Started with agent: ${respondingAgent}`);
+              } else if (data.type === 'done') {
+                respondingAgent = data.agent || 'maven';
+                if (data.response) {
+                  fullResponse = data.response;
+                }
+                if (data.handoffs) {
+                  handoffs = data.handoffs;
+                }
+                console.log(`[Swarm Stream] Completed: ${fullResponse.length} chars, handoffs: ${handoffs.join(' → ')}`);
+              } else if (data.type === 'error') {
+                console.error('[Swarm Stream] Error:', data.message);
+                throw new Error(data.message);
+              }
+            } catch (parseError) {
+              // Ignore parse errors for incomplete chunks
+              if (line.trim() && !line.includes('{"type"')) {
+                console.warn('Failed to parse SSE:', line);
+              }
+            }
+          }
+        }
+      }
+      
+      // Remove streaming class when done
+      if (streamingMessageDiv) {
+        streamingMessageDiv.classList.remove('streaming');
+      }
+
+      return {
+        response: fullResponse || 'No response received',
+        agent: respondingAgent,
+        handoffs: handoffs,
+      };
+      
+    } catch (error) {
+      console.error('[Swarm API] Error:', error);
+      throw error;
+    }
   }
 
   private async moveAgentsToMeeting(agentTypes: string[]): Promise<void> {

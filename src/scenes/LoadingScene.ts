@@ -60,6 +60,17 @@ export class LoadingScene extends Scene {
     
     // Load meeting room tilemap (shared meeting spaces with Jitsi integration)
     this.load.tilemapTiledJSON('room-meeting', '/assets/tilemaps/json/room-meeting.json');
+    
+    // Load chatbot ruins museum tilemap (large museum showcasing LLM history)
+    this.load.tilemapTiledJSON('room-chatbotruins', '/assets/tilemaps/json/room-chatbotruins.json');
+    
+    // Load ruins tilesets for the Chatbot Ruins museum
+    this.load.image('ruins-grass', '/assets/tilemaps/tiles/ruins/TX Tileset Grass.png');
+    this.load.image('ruins-stone', '/assets/tilemaps/tiles/ruins/TX Tileset Stone Ground.png');
+    this.load.image('ruins-props', '/assets/tilemaps/tiles/ruins/TX Props.png');
+    this.load.image('ruins-struct', '/assets/tilemaps/tiles/ruins/TX Struct.png');
+    this.load.image('ruins-plant', '/assets/tilemaps/tiles/ruins/TX Plant.png');
+    this.load.image('ruins-wall', '/assets/tilemaps/tiles/ruins/TX Tileset Wall.png');
 
     // Load all agent sprites (Pokemon-style characters)
     // Sprites are horizontal strips with 12 frames (4 directions x 3 frames each)

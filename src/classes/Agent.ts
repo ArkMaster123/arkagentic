@@ -34,6 +34,12 @@ export class Agent extends Actor {
   private typingTimer: Phaser.Time.TimerEvent | null = null;
   private typingDots: number = 1;
   
+  // Working state indicator (animated activity above head)
+  private workingIndicator: Phaser.GameObjects.Container | undefined;
+  private workingTimer: Phaser.Time.TimerEvent | null = null;
+  private workingGlow: Phaser.GameObjects.Graphics | undefined;
+  private isWorking: boolean = false;
+  
   // Grid-based movement
   private tileX: number = 0;
   private tileY: number = 0;
@@ -178,6 +184,7 @@ export class Agent extends Actor {
     this.updateTextBox();
     this.updateThoughtBubble();
     this.updateTypingIndicator();
+    this.updateWorkingIndicator();
 
     // Set depth for proper layering
     this.depth = this.y + 50;
@@ -691,6 +698,143 @@ export class Agent extends Actor {
     this.typingIndicator.setDepth(this.y + 200);
   }
 
+  // ========== Working State (animated activity indicator) ==========
+  
+  /**
+   * Show animated working indicator above agent's head
+   * Shows a pulsing glow and activity icons when agent is collaborating
+   */
+  public showWorkingIndicator(task?: string): void {
+    // Clean up existing indicator
+    this.hideWorkingIndicator();
+    
+    this.isWorking = true;
+    const agentColor = AGENT_COLORS[this.agentType];
+    
+    // Create container for working indicator
+    this.workingIndicator = this.scene.add.container(this.x, this.y - 30);
+    this.workingIndicator.setDepth(this.y + 250);
+    
+    // Create pulsing glow effect around agent
+    this.workingGlow = this.scene.add.graphics();
+    this.workingGlow.setDepth(this.y - 1);
+    this.updateWorkingGlow();
+    
+    // Background pill
+    const bg = this.scene.add.graphics();
+    bg.fillStyle(agentColor, 0.9);
+    bg.fillRoundedRect(-24, -10, 48, 20, 8);
+    bg.lineStyle(2, 0xffffff, 0.5);
+    bg.strokeRoundedRect(-24, -10, 48, 20, 8);
+    
+    // Activity icons that cycle (gear, sparkle, lightning)
+    const icons = ['*', '+', '~'];
+    const iconText = this.scene.add.text(0, 0, icons[0], {
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    
+    this.workingIndicator.add([bg, iconText]);
+    
+    // Animate the icons cycling
+    let iconIndex = 0;
+    this.workingTimer = this.scene.time.addEvent({
+      delay: 300,
+      callback: () => {
+        if (!iconText || !this.workingIndicator) return;
+        iconIndex = (iconIndex + 1) % icons.length;
+        iconText.setText(icons[iconIndex]);
+      },
+      loop: true,
+    });
+    
+    // Pulse animation for the indicator
+    this.scene.tweens.add({
+      targets: this.workingIndicator,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    
+    // Float animation
+    this.scene.tweens.add({
+      targets: this.workingIndicator,
+      y: this.y - 35,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+  
+  /**
+   * Hide the working indicator
+   */
+  public hideWorkingIndicator(): void {
+    this.isWorking = false;
+    
+    if (this.workingTimer) {
+      this.workingTimer.destroy();
+      this.workingTimer = null;
+    }
+    
+    if (this.workingIndicator) {
+      // Kill any tweens on this object
+      this.scene.tweens.killTweensOf(this.workingIndicator);
+      this.workingIndicator.destroy();
+      this.workingIndicator = undefined;
+    }
+    
+    if (this.workingGlow) {
+      this.scene.tweens.killTweensOf(this.workingGlow);
+      this.workingGlow.destroy();
+      this.workingGlow = undefined;
+    }
+  }
+  
+  /**
+   * Check if agent is in working state
+   */
+  public getIsWorking(): boolean {
+    return this.isWorking;
+  }
+  
+  /**
+   * Update the position of working indicator and glow
+   */
+  private updateWorkingIndicator(): void {
+    if (this.workingIndicator) {
+      this.workingIndicator.setPosition(this.x, this.workingIndicator.y);
+      this.workingIndicator.setDepth(this.y + 250);
+    }
+    
+    if (this.workingGlow) {
+      this.updateWorkingGlow();
+    }
+  }
+  
+  /**
+   * Draw the working glow effect around agent
+   */
+  private updateWorkingGlow(): void {
+    if (!this.workingGlow) return;
+    
+    const agentColor = AGENT_COLORS[this.agentType];
+    this.workingGlow.clear();
+    
+    // Outer glow
+    this.workingGlow.fillStyle(agentColor, 0.2);
+    this.workingGlow.fillCircle(this.x, this.y, 24);
+    
+    // Inner glow
+    this.workingGlow.fillStyle(agentColor, 0.3);
+    this.workingGlow.fillCircle(this.x, this.y, 16);
+  }
+
   public getIsSpeaking(): boolean {
     return this.isSpeaking;
   }
@@ -721,6 +865,7 @@ export class Agent extends Actor {
     this.destroyTextBox();
     this.destroyThoughtBubble();
     this.hideTypingIndicator();
+    this.hideWorkingIndicator();
     if (this.nameTag) {
       this.nameTag.destroy();
     }

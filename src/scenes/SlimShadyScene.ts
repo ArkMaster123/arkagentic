@@ -404,6 +404,96 @@ export class SlimShadyScene extends Scene {
     // Show dance announcement
     this.showDanceBubble();
     
+    // Move clones into letter formation first!
+    this.formLetterShape();
+    
+    // Start dance sequence after clones are in position
+    this.time.delayedCall(1500, () => {
+      this.doDanceSequence();
+    });
+  }
+
+  private formLetterShape(): void {
+    // Letter patterns - each letter is defined as grid positions
+    // We'll spell "HI" with the clones
+    // Grid is roughly 5 wide x 7 tall per letter, spaced out
+    
+    const letterH = [
+      // Left vertical bar
+      { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: 0, y: 3 }, { x: 0, y: 4 },
+      // Right vertical bar  
+      { x: 2, y: 0 }, { x: 2, y: 1 }, { x: 2, y: 2 }, { x: 2, y: 3 }, { x: 2, y: 4 },
+      // Middle horizontal bar
+      { x: 1, y: 2 },
+    ];
+    
+    const letterI = [
+      // Top horizontal
+      { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 },
+      // Vertical bar
+      { x: 1, y: 1 }, { x: 1, y: 2 }, { x: 1, y: 3 },
+      // Bottom horizontal
+      { x: 0, y: 4 }, { x: 1, y: 4 }, { x: 2, y: 4 },
+    ];
+    
+    // Combine letters with offset for "HI"
+    const letterSpacing = 4; // Grid units between letters
+    const allPositions: { x: number; y: number }[] = [];
+    
+    // Add H positions
+    letterH.forEach(pos => {
+      allPositions.push({ x: pos.x, y: pos.y });
+    });
+    
+    // Add I positions (offset by letter spacing)
+    letterI.forEach(pos => {
+      allPositions.push({ x: pos.x + letterSpacing, y: pos.y });
+    });
+    
+    // Convert grid to screen positions
+    const gridSize = 35; // Pixels per grid cell
+    const startX = 250; // Starting X position
+    const startY = 200; // Starting Y position
+    
+    // Assign positions to clones
+    this.clones.forEach((clone, index) => {
+      if (index < allPositions.length) {
+        const gridPos = allPositions[index];
+        const targetX = startX + gridPos.x * gridSize;
+        const targetY = startY + gridPos.y * gridSize;
+        
+        // Animate clone to position
+        this.tweens.add({
+          targets: clone.sprite,
+          x: targetX,
+          y: targetY,
+          duration: 1000,
+          ease: 'Back.easeOut',
+          onUpdate: () => {
+            clone.nameLabel.setPosition(clone.sprite.x, clone.sprite.y - 18);
+          },
+        });
+      } else {
+        // Extra clones gather below the letters
+        const extraIndex = index - allPositions.length;
+        const targetX = 300 + (extraIndex % 5) * 40;
+        const targetY = 420 + Math.floor(extraIndex / 5) * 30;
+        
+        this.tweens.add({
+          targets: clone.sprite,
+          x: targetX,
+          y: targetY,
+          duration: 1000,
+          ease: 'Back.easeOut',
+          onUpdate: () => {
+            clone.nameLabel.setPosition(clone.sprite.x, clone.sprite.y - 18);
+          },
+        });
+      }
+    });
+  }
+
+  private doDanceSequence(): void {
     // Dance sequence - 4 beats
     const danceSequence = ['down', 'left', 'up', 'right'];
     let beatIndex = 0;
@@ -422,7 +512,7 @@ export class SlimShadyScene extends Scene {
           // Add a little bounce
           this.tweens.add({
             targets: clone.sprite,
-            y: clone.sprite.y - 5,
+            y: clone.sprite.y - 8,
             duration: 100,
             yoyo: true,
             ease: 'Quad.easeOut',
@@ -434,7 +524,7 @@ export class SlimShadyScene extends Scene {
         this.player.anims.play(`slim-idle-${direction}`, true);
         this.tweens.add({
           targets: this.player,
-          y: this.player.y - 5,
+          y: this.player.y - 8,
           duration: 100,
           yoyo: true,
           ease: 'Quad.easeOut',
