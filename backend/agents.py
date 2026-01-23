@@ -606,6 +606,92 @@ Provide a thorough, helpful response to the user's request."""
                 "status": "error",
             }
 
+    async def _stream_with_swarm(self, query: str) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Stream a response using the swarm (team collaboration).
+
+        Since Swarm doesn't have native streaming, we run it in a thread pool
+        and then stream the complete response in chunks for a better UX.
+        """
+        import asyncio
+        import concurrent.futures
+
+        # Send start event indicating swarm mode
+        yield {
+            "type": "start",
+            "agent": "maven",
+            "model": DEFAULT_MODEL,
+            "swarm_mode": True,
+        }
+
+        # Send a message that the team is collaborating
+        yield {
+            "type": "chunk",
+            "data": "🤝 *Team huddle in progress...*\n\n",
+        }
+
+        try:
+            # Run the synchronous swarm in a thread pool
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                result = await loop.run_in_executor(
+                    executor, self._process_with_swarm, query
+                )
+
+            response_text = result.get("response", "")
+            final_agent = result.get("agent", "maven")
+            handoffs = result.get("handoffs", [])
+
+            # Notify about agent participation
+            if handoffs and len(handoffs) > 1:
+                agents_involved = ", ".join(
+                    [
+                        str(AGENT_CONFIGS.get(a, {}).get("emoji", "🤖"))
+                        + " "
+                        + str(AGENT_CONFIGS.get(a, {}).get("name", a))
+                        for a in handoffs
+                        if a in AGENT_CONFIGS
+                    ]
+                )
+                yield {
+                    "type": "chunk",
+                    "data": f"*Agents consulted: {agents_involved}*\n\n---\n\n",
+                }
+
+            # Stream the response in chunks for better UX
+            chunk_size = 50  # characters per chunk
+            for i in range(0, len(response_text), chunk_size):
+                chunk = response_text[i : i + chunk_size]
+                yield {
+                    "type": "chunk",
+                    "data": chunk,
+                }
+                # Small delay for streaming effect
+                await asyncio.sleep(0.01)
+
+            # Send completion event
+            yield {
+                "type": "done",
+                "agent": final_agent,
+                "response": response_text,
+                "handoffs": handoffs,
+            }
+
+            logger.info(
+                f"Swarm stream completed. Agents: {handoffs}, Response: {len(response_text)} chars"
+            )
+
+        except Exception as e:
+            logger.error(f"Swarm streaming error: {e}")
+            import traceback
+
+            traceback.print_exc()
+            yield {
+                "type": "error",
+                "message": str(e),
+                "agent": "maven",
+            }
+
     async def stream_query(
         self,
         query: str,
@@ -626,7 +712,14 @@ Provide a thorough, helpful response to the user's request."""
         - {"type": "done", "agent": agent_type, "response": full_response}
         - {"type": "error", "message": error_message}
         """
-        # Route to appropriate agent
+        # Check if we should use swarm mode
+        if self.use_swarm and self.swarm is not None:
+            logger.info(f"Using SWARM mode for streaming query: {query[:50]}...")
+            async for event in self._stream_with_swarm(query):
+                yield event
+            return
+
+        # Route to appropriate agent (single-agent mode)
         agent_type = preferred_agent or route_to_agent(query)
 
         # If user has a model preference, create agent with that model
