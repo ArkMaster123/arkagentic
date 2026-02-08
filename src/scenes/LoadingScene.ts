@@ -62,7 +62,7 @@ export class LoadingScene extends Scene {
     this.load.tilemapTiledJSON('room-meeting', '/assets/tilemaps/json/room-meeting.json');
     
     // Load chatbot ruins museum tilemap (large museum showcasing LLM history)
-    this.load.tilemapTiledJSON('room-chatbotruins', '/assets/tilemaps/json/room-chatbotruins.json');
+    this.load.tilemapTiledJSON('room-chatbotruins', '/assets/tilemaps/json/room-chatbotruins.json?v=' + Date.now());
     
     // Load ruins tilesets for the Chatbot Ruins museum
     this.load.image('ruins-grass', '/assets/tilemaps/tiles/ruins/TX Tileset Grass.png');
@@ -71,6 +71,21 @@ export class LoadingScene extends Scene {
     this.load.image('ruins-struct', '/assets/tilemaps/tiles/ruins/TX Struct.png');
     this.load.image('ruins-plant', '/assets/tilemaps/tiles/ruins/TX Plant.png');
     this.load.image('ruins-wall', '/assets/tilemaps/tiles/ruins/TX Tileset Wall.png');
+
+    // Load museum exhibit assets (AI-generated sprite sheets, backgrounds removed)
+    this.load.image('museum-showcase', '/assets/tilemaps/tiles/museum/museum-showcase.png');
+    this.load.image('museum-exhibits', '/assets/tilemaps/tiles/museum/museum-exhibits.png');
+    this.load.image('museum-barriers', '/assets/tilemaps/tiles/museum/museum-barriers.png');
+    this.load.image('museum-glass-cases', '/assets/tilemaps/tiles/museum/museum-glass-cases.png');
+
+    // Load VFX sprite sheets for museum animated effects (CodeManu Free VFX Pack, public domain)
+    this.load.spritesheet('vfx-eldenring', '/assets/vfx/vfx-eldenring.png', { frameWidth: 421, frameHeight: 425 });
+    this.load.spritesheet('vfx-constellation', '/assets/vfx/vfx-constellation.png', { frameWidth: 299, frameHeight: 313 });
+    this.load.spritesheet('vfx-electricshield', '/assets/vfx/vfx-electricshield.png', { frameWidth: 265, frameHeight: 265 });
+    this.load.spritesheet('vfx-anima', '/assets/vfx/vfx-anima.png', { frameWidth: 437, frameHeight: 437 });
+    this.load.spritesheet('vfx-fastpixelfire', '/assets/vfx/vfx-fastpixelfire.png', { frameWidth: 173, frameHeight: 193 });
+    this.load.spritesheet('vfx-ditheredfire', '/assets/vfx/vfx-ditheredfire.png', { frameWidth: 517, frameHeight: 246 });
+    this.load.spritesheet('vfx-charged', '/assets/vfx/vfx-charged.png', { frameWidth: 321, frameHeight: 371 });
 
     // Load all agent sprites (Pokemon-style characters)
     // Sprites are horizontal strips with 12 frames (4 directions x 3 frames each)
@@ -117,6 +132,28 @@ export class LoadingScene extends Scene {
   }
 
   async create(): Promise<void> {
+    // Check for debug routes that should skip character select
+    const path = window.location.pathname.toLowerCase();
+    const urlParams = new URLSearchParams(window.location.search);
+    const debugMode = urlParams.get('debug') === 'true';
+    
+    // Direct scene access for development/debugging
+    if (path === '/chatbotruins' || path === '/chatbotruins/') {
+      console.log('[Loading] Direct access to ChatbotRuins - skipping character select');
+      
+      // Get existing credentials or use defaults for debug
+      const offline = StorageService.getOfflineCredentials();
+      const session = StorageService.getSessionCredentials();
+      
+      this.scene.start('chatbotruins-scene', {
+        playerAvatar: offline?.avatar || session?.userId ? 'brendan' : 'brendan',
+        playerName: offline?.name || 'DebugPlayer',
+        fromTown: false,
+        isDebugMode: true,
+      });
+      return;
+    }
+    
     // Use StorageService for all credential access
     const session = StorageService.getSessionCredentials();
     const offline = StorageService.getOfflineCredentials();

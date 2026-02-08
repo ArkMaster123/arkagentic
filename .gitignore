@@ -45,4 +45,22 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+tmp/
 .env.local.backup
+
+# Large asset packs (not for version control)
+Pixel Art Top Down - Basic v1.2.2/
+VFX Free Pack/
+demo-assets/
+demo-video/
+
+# Generated/tool files
+.opencode/
+.planning/
+opencode.jsonc
+scripts/
+
+# Misc
+~/
+AGENTS.md
+agentic-game-master-plan.md
